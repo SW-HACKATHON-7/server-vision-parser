@@ -211,6 +211,32 @@ class SimpleChatOCR:
         total_ocr_time = time.time() - start_ocr
         print(f"\nOCR 완료! 총 소요 시간: {total_ocr_time:.1f}초 (평균 {total_ocr_time/len(bubbles):.1f}초/말풍선)")
 
+        # 후처리: 반복되는 발신자 이름 제거
+        interlocutor_texts = [
+            msg['text'] for msg in messages 
+            if msg['bubble_type'] == 'left' and len(msg['text'].strip()) <= 5
+        ]
+        text_counts = {text: interlocutor_texts.count(text) for text in set(interlocutor_texts)}
+        
+        names_to_filter = {text for text, count in text_counts.items() if count > 1}
+
+        if names_to_filter:
+            print(f"\n=== 발신자 이름 필터링 ===")
+            print(f"필터링 대상 이름: {', '.join(names_to_filter)}")
+            
+            original_message_count = len(messages)
+            
+            messages = [
+                msg for msg in messages 
+                if not (msg['bubble_type'] == 'left' and msg['text'] in names_to_filter)
+            ]
+            
+            print(f"{original_message_count - len(messages)}개 메시지 제거됨")
+
+            # 메시지 ID 재설정
+            for i, msg in enumerate(messages, 1):
+                msg['id'] = i
+
         # 결과 구성
         result = {
             'image_path': image_path,

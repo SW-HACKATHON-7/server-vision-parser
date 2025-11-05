@@ -246,7 +246,7 @@ def detect_chat_bubbles(image: np.ndarray) -> List[Dict[str, Any]]:
 
 def merge_nearby_bubbles(bubbles: List[Dict[str, Any]], img_width: int, img_height: int) -> List[Dict[str, Any]]:
     """
-    Y 위치 기반으로 먼저 그룹핑 후 병합
+    Y와 X 위치 기반으로 그룹핑 후 병합 (가로/세로 인접성 모두 고려)
 
     Args:
         bubbles: 말풍선 리스트
@@ -268,36 +268,53 @@ def merge_nearby_bubbles(bubbles: List[Dict[str, Any]], img_width: int, img_heig
             continue
         filtered.append(b)
 
-    bubbles = filtered
+    bubbles = sorted(filtered, key=lambda b: (b['y'], b['x']))
 
-    # 2단계: Y 위치로 그룹핑 (같은 줄의 조각들)
+    # 2단계: 인접한 버블 그룹핑
     groups = []
-    used = set()
+    used = [False] * len(bubbles)
 
-    for i, bubble in enumerate(bubbles):
-        if i in used:
+    for i in range(len(bubbles)):
+        if used[i]:
             continue
 
-        group = [bubble]
-        used.add(i)
-        bubble_y = bubble['y'] + bubble['height'] / 2
+        current_group = [bubbles[i]]
+        used[i] = True
 
-        for j, other in enumerate(bubbles):
-            if j in used:
-                continue
+        # 그룹을 확장하기 위한 큐
+        queue = [bubbles[i]]
+        
+        head = 0
+        while head < len(queue):
+            current_bubble = queue[head]
+            head += 1
 
-            other_y = other['y'] + other['height'] / 2
+            for j in range(len(bubbles)):
+                if used[j]:
+                    continue
 
-            # 같은 줄 판단 (Y 위치 차이 < 60px)
-            if abs(bubble_y - other_y) < 60:
-                group.append(other)
-                used.add(j)
+                other_bubble = bubbles[j]
 
-        groups.append(group)
+                # 수직 인접성 체크 (Y 좌표 중심이 서로의 높이 안에 있는지)
+                y_center_current = current_bubble['y'] + current_bubble['height'] / 2
+                y_center_other = other_bubble['y'] + other_bubble['height'] / 2
+                
+                is_vertically_close = abs(y_center_current - y_center_other) < (current_bubble['height'] + other_bubble['height']) / 2
+
+                # 수평 인접성 체크 (X 좌표 간격)
+                x_dist = max(0, max(current_bubble['x'], other_bubble['x']) - min(current_bubble['x'] + current_bubble['width'], other_bubble['x'] + other_bubble['width']))
+                
+                is_horizontally_close = x_dist < 100  # 100px 이내
+
+                if is_vertically_close and is_horizontally_close:
+                    current_group.append(other_bubble)
+                    used[j] = True
+                    queue.append(other_bubble)
+        
+        groups.append(current_group)
 
     # 3단계: 각 그룹을 하나의 말풍선으로 병합
     merged = []
-
     for group in groups:
         if not group:
             continue
@@ -590,6 +607,35 @@ async def analyze_chat_image(file: UploadFile = File(...)):
             print(f"  추가 - 메시지 #{len(messages)} (speaker: {speaker})")
 
         print(f"\n=== OCR 완료: 총 {len(messages)}개 메시지 추출 ===")
+
+        # 후처리: 반복되는 발신자 이름 제거
+        # 짧은 interlocutor 메시지들의 등장 횟수를 계산
+        interlocutor_texts = [
+            msg['text'] for msg in messages 
+            if msg['speaker'] == 'interlocutor' and len(msg['text'].strip()) <= 5
+        ]
+        text_counts = {text: interlocutor_texts.count(text) for text in set(interlocutor_texts)}
+        
+        # 2번 이상 등장한 짧은 텍스트를 이름으로 간주하고 필터링 목록에 추가
+        names_to_filter = {text for text, count in text_counts.items() if count > 1}
+
+        if names_to_filter:
+            print(f"\n=== 발신자 이름 필터링 ===")
+            print(f"필터링 대상 이름: {', '.join(names_to_filter)}")
+            
+            original_message_count = len(messages)
+            
+            # 이름 목록에 있는 메시지들을 제거
+            messages = [
+                msg for msg in messages 
+                if not (msg['speaker'] == 'interlocutor' and msg['text'] in names_to_filter)
+            ]
+            
+            print(f"{original_message_count - len(messages)}개 메시지 제거됨")
+
+            # 메시지 ID 재설정
+            for i, msg in enumerate(messages, 1):
+                msg['id'] = i
 
         # 메시지 그룹핑 (같은 speaker의 연속 메시지)
         print("\n=== 메시지 그룹핑 중 ===")
