@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Project specific
+uploads/
+results/
+output/
+test_result.json
+
+# 테스트 이미지는 제외 (target.png는 추적)
+*.jpg
+*.jpeg
+!target.png
+*.png
+!target.png
+*.gif
+
+# EasyOCR models
+.EasyOCR/
+
+# Logs
+*.log
