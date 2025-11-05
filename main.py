@@ -593,7 +593,7 @@ async def analyze_chat_image(file: UploadFile = File(...)):
 
         # 메시지 그룹핑 (같은 speaker의 연속 메시지)
         print("\n=== 메시지 그룹핑 중 ===")
-        messages = group_consecutive_messages(messages, gap_threshold=50)
+        messages = group_consecutive_messages(messages, gap_threshold=100)
 
         # 그룹 정보 출력
         group_counts = {}
