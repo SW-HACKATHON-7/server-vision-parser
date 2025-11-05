@@ -1,5 +1,5 @@
 """
-FastAPI 기반 카카오톡 채팅 말풍선 OCR 분석 API
+VisionParser API
 """
 
 from fastapi import FastAPI, File, UploadFile, HTTPException
@@ -194,10 +194,23 @@ def detect_chat_bubbles(image: np.ndarray) -> List[Dict[str, Any]]:
 
     bubbles = []
     img_height, img_width = image.shape[:2]
-    filtered_count = {'size': 0, 'area': 0, 'aspect': 0}
+    filtered_count = {'size': 0, 'area': 0, 'aspect': 0, 'ignored_region': 0}
+    
+    # Define ignored regions
+    TOP_IGNORE_PX = 200
+    BOTTOM_IGNORE_PX = 200
+    
+    # Calculate effective processing height
+    effective_top = TOP_IGNORE_PX
+    effective_bottom = img_height - BOTTOM_IGNORE_PX
 
     for contour in contours:
         x, y, w, h = cv2.boundingRect(contour)
+
+        # Ignore bubbles in the top 200px and bottom 200px
+        if y < effective_top or (y + h) > effective_bottom:
+            filtered_count['ignored_region'] += 1
+            continue
 
         # 필터링 (더 관대한 조건)
         if w < 40 or h < 15:
@@ -234,7 +247,7 @@ def detect_chat_bubbles(image: np.ndarray) -> List[Dict[str, Any]]:
     # y 좌표로 정렬 (위에서 아래로)
     bubbles.sort(key=lambda b: b['y'])
 
-    print(f"  - 필터링됨: 크기({filtered_count['size']}), 면적({filtered_count['area']}), 종횡비({filtered_count['aspect']})")
+    print(f"  - 필터링됨: 크기({filtered_count['size']}), 면적({filtered_count['area']}), 종횡비({filtered_count['aspect']}), 무시된 영역({filtered_count['ignored_region']})")
     print(f"  - 병합 전 말풍선: {len(bubbles)}개")
 
     # 인접한 말풍선 병합 (같은 줄에 있는 작은 조각들)
@@ -471,6 +484,9 @@ def save_visualization(image_path: str, messages: List[Dict], output_path: Path)
         cv2.putText(image, label, (x, y - 5),
                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
+        # 좌표에 빨간색 점 찍기 (x, y 시작점) - 점만 100px 오른쪽으로 이동
+        cv2.circle(image, (x + 100, y), radius=5, color=(0, 0, 255), thickness=-1)
+
     cv2.imwrite(str(output_path), image)
 
 
@@ -609,14 +625,12 @@ async def analyze_chat_image(file: UploadFile = File(...)):
         print(f"\n=== OCR 완료: 총 {len(messages)}개 메시지 추출 ===")
 
         # 후처리: 반복되는 발신자 이름 제거
-        # 짧은 interlocutor 메시지들의 등장 횟수를 계산
         interlocutor_texts = [
             msg['text'] for msg in messages 
             if msg['speaker'] == 'interlocutor' and len(msg['text'].strip()) <= 5
         ]
         text_counts = {text: interlocutor_texts.count(text) for text in set(interlocutor_texts)}
         
-        # 2번 이상 등장한 짧은 텍스트를 이름으로 간주하고 필터링 목록에 추가
         names_to_filter = {text for text, count in text_counts.items() if count > 1}
 
         if names_to_filter:
@@ -625,7 +639,6 @@ async def analyze_chat_image(file: UploadFile = File(...)):
             
             original_message_count = len(messages)
             
-            # 이름 목록에 있는 메시지들을 제거
             messages = [
                 msg for msg in messages 
                 if not (msg['speaker'] == 'interlocutor' and msg['text'] in names_to_filter)

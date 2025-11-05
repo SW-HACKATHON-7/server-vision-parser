@@ -1,6 +1,5 @@
 """
-독립 실행형 채팅 OCR 스크립트
-FastAPI 서버 없이 target.png 파일을 직접 처리
+VisionParser Test Client
 """
 
 import cv2
@@ -12,8 +11,6 @@ from typing import List, Dict, Any
 
 
 class SimpleChatOCR:
-    """간단한 채팅 OCR 프로세서"""
-
     def __init__(self, languages=['ko', 'en']):
         """
         Args:
@@ -213,24 +210,24 @@ class SimpleChatOCR:
 
         # 후처리: 반복되는 발신자 이름 제거
         interlocutor_texts = [
-            msg['text'] for msg in messages 
+            msg['text'] for msg in messages
             if msg['bubble_type'] == 'left' and len(msg['text'].strip()) <= 5
         ]
         text_counts = {text: interlocutor_texts.count(text) for text in set(interlocutor_texts)}
-        
+
         names_to_filter = {text for text, count in text_counts.items() if count > 1}
 
         if names_to_filter:
             print(f"\n=== 발신자 이름 필터링 ===")
             print(f"필터링 대상 이름: {', '.join(names_to_filter)}")
-            
+
             original_message_count = len(messages)
-            
+
             messages = [
-                msg for msg in messages 
+                msg for msg in messages
                 if not (msg['bubble_type'] == 'left' and msg['text'] in names_to_filter)
             ]
-            
+
             print(f"{original_message_count - len(messages)}개 메시지 제거됨")
 
             # 메시지 ID 재설정
@@ -266,28 +263,20 @@ class SimpleChatOCR:
         # 디버그 이미지 추출 (JSON에 저장하지 않음)
         debug_binary = result.pop('debug_binary', None)
 
-        # JSON 저장
-        json_file = output_path / 'result.json'
-        with open(json_file, 'w', encoding='utf-8') as f:
-            json.dump(result, f, ensure_ascii=False, indent=2)
-        print(f"\n저장 OK - JSON: {json_file}")
-
-        # 디버그 이진화 이미지 저장
-        if debug_binary is not None:
-            debug_file = output_path / 'debug_binary.jpg'
-            cv2.imwrite(str(debug_file), debug_binary)
-            print(f"저장 OK - 디버그 이미지: {debug_file}")
-
-        # 시각화 이미지 생성
+        # 시각화 이미지 생성 (원본 messages 사용)
         image = cv2.imread(image_path)
+        visualization_messages = result.get('messages', [])
 
-        for msg in result['messages']:
-            pos = msg['position']
+        for msg in visualization_messages:
+            # bubble_type에 따라 색상 결정
+            color = (255, 0, 0) if msg.get('bubble_type') == 'left' else (0, 255, 0)
+
+            pos = msg.get('position')
+            if not pos:
+                continue
+
             x, y = int(pos['x']), int(pos['y'])
             w, h = int(pos['width']), int(pos['height'])
-
-            # 색상: 받은 메시지(파랑), 보낸 메시지(초록)
-            color = (255, 0, 0) if msg['bubble_type'] == 'left' else (0, 255, 0)
 
             # 바운딩 박스
             cv2.rectangle(image, (x, y), (x + w, y + h), color, 2)
@@ -301,6 +290,35 @@ class SimpleChatOCR:
         vis_file = output_path / 'visualization.jpg'
         cv2.imwrite(str(vis_file), image)
         print(f"저장 OK - 시각화 이미지: {vis_file}")
+
+        # JSON 저장을 위해 메시지 형식 변환
+        final_messages = []
+        for msg_orig in visualization_messages:
+            msg = msg_orig.copy()
+            speaker = 'user' if msg.pop('bubble_type') == 'right' else 'interlocutor'
+            msg['speaker'] = speaker
+
+            pos = msg.pop('position', None)
+            if speaker == 'user' and pos:
+                msg['position'] = {'x': pos['x'], 'y': pos['y']}
+            
+            final_messages.append(msg)
+        
+        # JSON용 result 딕셔너리 업데이트
+        result['messages'] = final_messages
+        result['total_messages'] = len(final_messages)
+
+        # JSON 저장
+        json_file = output_path / 'result.json'
+        with open(json_file, 'w', encoding='utf-8') as f:
+            json.dump(result, f, ensure_ascii=False, indent=2)
+        print(f"\n저장 OK - JSON: {json_file}")
+
+        # 디버그 이진화 이미지 저장
+        if debug_binary is not None:
+            debug_file = output_path / 'debug_binary.jpg'
+            cv2.imwrite(str(debug_file), debug_binary)
+            print(f"저장 OK - 디버그 이미지: {debug_file}")
 
         print(f"\n모든 결과가 저장되었습니다: {output_path}/")
 
@@ -334,7 +352,7 @@ def main():
         # 이미지 처리
         result = ocr.process_image(image_path)
 
-        # 결과 출력
+        # fuck
         print("\n" + "="*70)
         print("분석 결과 요약")
         print("="*70)

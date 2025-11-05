@@ -1,6 +1,5 @@
 """
-카카오톡 채팅 말풍선 OCR 분석기
-이미지에서 말풍선(채팅 박스)을 감지하고 OCR을 수행하여 JSON으로 반환
+VisionParser V1
 """
 
 import cv2
