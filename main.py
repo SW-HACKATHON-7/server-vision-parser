@@ -88,7 +88,7 @@ class ProcessSessionResponse(BaseModel):
 EXTERNAL_API_URL = "http://localhost:8080/analyze-messages"
 SUGGESTION_API_URL = "http://localhost:8080/suggestion-messages"
 START_CONVERSATION_URL = "http://localhost:8080/start-conversation"
-CONTINUE_CONVERSATION_URL = "http://localhost:8080/continue-conversation"
+SEND_MESSAGE_URL = "http://localhost:8080/send-message"  # fuck
 EXTERNAL_API_KEY = None
 
 print(f"🔧 External API 설정:")
@@ -1206,7 +1206,7 @@ async def continue_conversation(request: ContinueConversationRequest):
     print(f"Thread ID: {request.thread_id}")
     print(f"User Message: {request.message}")
 
-    if not CONTINUE_CONVERSATION_URL:
+    if not SEND_MESSAGE_URL:
         # 더미 응답
         print("⚠ 더미 모드: 샘플 응답 반환")
         return JSONResponse(content={
@@ -1229,11 +1229,11 @@ async def continue_conversation(request: ContinueConversationRequest):
             "message": request.message,
             "thread_id": request.thread_id
         }
-        print(f"→ 외부 API 호출: {CONTINUE_CONVERSATION_URL}")
+        print(f"→ 외부 API 호출: {SEND_MESSAGE_URL}")
 
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                CONTINUE_CONVERSATION_URL,
+                SEND_MESSAGE_URL,
                 json=request_data,
                 headers=headers,
                 timeout=aiohttp.ClientTimeout(total=30)
@@ -1254,7 +1254,7 @@ async def continue_conversation(request: ContinueConversationRequest):
                     print(f"   응답: {error_text}")
                     raise HTTPException(
                         status_code=response.status,
-                        detail=f"External API error: {error_text}"
+                        detail=f"{response.status}: External API error: {error_text}"
                     )
 
     except asyncio.TimeoutError:
