@@ -12,7 +12,7 @@ import time
 class ChatOCRClient:
     """Chat OCR API V2 클라이언트"""
 
-    def __init__(self, base_url: str = "http://localhost:8000"):
+    def __init__(self, base_url: str = "http://44.192.92.96"):
         """
         Args:
             base_url: API 서버 URL
