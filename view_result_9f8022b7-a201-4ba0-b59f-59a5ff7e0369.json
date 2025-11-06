@@ -1,0 +1,224 @@
+{
+  "session_id": "9f8022b7-a201-4ba0-b59f-59a5ff7e0369",
+  "matched": true,
+  "total_matched": 12,
+  "total_ocr_extracted": 12,
+  "messages": [
+    {
+      "message_id": "95f7e15b-c615-463e-a57f-1692f719ec35",
+      "text": "보우 1U.59",
+      "speaker": "user",
+      "confidence": 0.358,
+      "position": {
+        "x": 1152.0,
+        "y": 334.0,
+        "width": 260.0,
+        "height": 29.0
+      },
+      "group_id": 1,
+      "score": 50.0,
+      "emotional_tone": "중립",
+      "impact_score": 0.0,
+      "ai_message": "업무 지시를 명확히 하려는 의도는 좋으나, 약간 딱딱하고 무뚝뚝하게 들릴 수 있습니다.",
+      "suggested_alternative": "'내일 회의 전에 결과 정리해서 공유해 주실 수 있을까요? 부탁드려요!'처럼 부드럽고 협조를 요청하는 말투를 사용해 보세요."
+    },
+    {
+      "message_id": "8b0cfca9-31da-4f2a-84b6-dfbc3b04707b",
+      "text": "내일 회의 전에 결과 정리해서 공유해 주세요 오후 11.01",
+      "speaker": "user",
+      "confidence": 0.855,
+      "position": {
+        "x": 400.0,
+        "y": 385.0,
+        "width": 1022.0,
+        "height": 186.0
+      },
+      "group_id": 1,
+      "score": 50.0,
+      "emotional_tone": "중립",
+      "impact_score": 0.0,
+      "ai_message": "업무 지시를 명확히 하려는 의도는 좋으나, 약간 딱딱하고 무뚝뚝하게 들릴 수 있습니다.",
+      "suggested_alternative": "'내일 회의 전에 결과 정리해서 공유해 주실 수 있을까요? 부탁드려요!'처럼 부드럽고 협조를 요청하는 말투를 사용해 보세요."
+    },
+    {
+      "message_id": "675e8d19-9a4f-4dd7-8133-77a1af8127da",
+      "text": "법 내일 오전까지 마무리하켓습니다",
+      "speaker": "interlocutor",
+      "confidence": 0.698,
+      "position": {
+        "x": 233.0,
+        "y": 728.0,
+        "width": 736.0,
+        "height": 56.0
+      },
+      "group_id": 2,
+      "score": null,
+      "emotional_tone": null,
+      "impact_score": null,
+      "ai_message": null,
+      "suggested_alternative": null
+    },
+    {
+      "message_id": "94594a51-11af-4d07-a7fc-b4082e624752",
+      "text": "회의가 오전 9시니까 9시 전에 주세요 오후 11.02",
+      "speaker": "user",
+      "confidence": 0.758,
+      "position": {
+        "x": 375.0,
+        "y": 868.0,
+        "width": 1047.0,
+        "height": 131.0
+      },
+      "group_id": 3,
+      "score": 70.0,
+      "emotional_tone": "중립",
+      "impact_score": 0.0,
+      "ai_message": "회의 시간 전까지 자료를 달라는 구체적인 요청으로 명확성을 높였습니다.",
+      "suggested_alternative": "'회의가 오전 9시라 9시 전에 자료를 받을 수 있을까요? 미리 검토하려고 합니다.'처럼 상대에 대한 배려도 담아보세요."
+    },
+    {
+      "message_id": "1e6296ab-942e-4959-a977-b933baba5a25",
+      "text": "네 9시좀 드리켓습니다",
+      "speaker": "interlocutor",
+      "confidence": 0.607,
+      "position": {
+        "x": 237.0,
+        "y": 1160.0,
+        "width": 474.0,
+        "height": 48.0
+      },
+      "group_id": 4,
+      "score": null,
+      "emotional_tone": null,
+      "impact_score": null,
+      "ai_message": null,
+      "suggested_alternative": null
+    },
+    {
+      "message_id": "8804556e-daba-412e-8cd5-96e6cc36c85a",
+      "text": "9시쪽이면 너무 늦어요 회의 시작이 9시예요 오후 11.02",
+      "speaker": "user",
+      "confidence": 0.637,
+      "position": {
+        "x": 419.0,
+        "y": 1296.0,
+        "width": 1003.0,
+        "height": 186.0
+      },
+      "group_id": 5,
+      "score": 45.0,
+      "emotional_tone": "약간 부정적",
+      "impact_score": -1.0,
+      "ai_message": "상대방의 시간 약속을 조금 강하게 지적하는 표현이라 다소 무리라는 느낌을 줄 수 있습니다.",
+      "suggested_alternative": "'회의 시작이 9시라 조금 더 일찍 받으면 좋을 것 같아요. 준비할 시간이 필요해서요.'로 부드럽게 설명해 주세요."
+    },
+    {
+      "message_id": "6dfa04bc-7616-46e3-9793-56c2dc0602bc",
+      "text": "아; 네. 그럼 회의 전에 바로 보내드실게요",
+      "speaker": "interlocutor",
+      "confidence": 0.384,
+      "position": {
+        "x": 233.0,
+        "y": 1640.0,
+        "width": 835.0,
+        "height": 56.0
+      },
+      "group_id": 6,
+      "score": null,
+      "emotional_tone": null,
+      "impact_score": null,
+      "ai_message": null,
+      "suggested_alternative": null
+    },
+    {
+      "message_id": "134732cb-b9fb-49b1-ad0a-9b840a256291",
+      "text": "그러니까 8시 반 전에는 보내야조. 미리 검토해야 하니까요 오후 11.02",
+      "speaker": "user",
+      "confidence": 0.71,
+      "position": {
+        "x": 356.0,
+        "y": 1779.0,
+        "width": 1065.0,
+        "height": 186.0
+      },
+      "group_id": 7,
+      "score": 65.0,
+      "emotional_tone": "중립",
+      "impact_score": 0.0,
+      "ai_message": "회의 준비를 위해 구체적 시간 제한을 다시 제시하여 명확성을 더했습니다.",
+      "suggested_alternative": "'8시 30분까지 보내주시면 미리 검토하는 데 도움이 될 것 같아요.'와 같이 부탁하는 표현으로 바꿔보세요."
+    },
+    {
+      "message_id": "0d42eec4-a53d-4f3a-a232-7d462582ff09",
+      "text": "아 그럼 8시 30분까지로 할게요",
+      "speaker": "interlocutor",
+      "confidence": 0.829,
+      "position": {
+        "x": 233.0,
+        "y": 2122.0,
+        "width": 683.0,
+        "height": 54.0
+      },
+      "group_id": 8,
+      "score": null,
+      "emotional_tone": null,
+      "impact_score": null,
+      "ai_message": null,
+      "suggested_alternative": null
+    },
+    {
+      "message_id": "84851830-8984-4d86-af25-a0c88b2b1fa4",
+      "text": "네, 다음엔 처음부터 그렇게 명확하게 해요 애매하잡아요 오후 11.03",
+      "speaker": "user",
+      "confidence": 0.762,
+      "position": {
+        "x": 291.0,
+        "y": 2262.0,
+        "width": 1130.0,
+        "height": 186.0
+      },
+      "group_id": 9,
+      "score": 40.0,
+      "emotional_tone": "약간 부정적",
+      "impact_score": -1.0,
+      "ai_message": "'애매하잡아요'와 같은 표현이 다소 무례하게 들려 긴장감을 높일 수 있습니다.",
+      "suggested_alternative": "'다음에는 처음부터 시간을 좀 더 명확히 알려주시면 좋겠어요.'라고 부드러운 톤으로 전달해보세요."
+    },
+    {
+      "message_id": "27818dd8-68c0-4f80-96bc-61109a61b352",
+      "text": "팀장님 보고서 정리 완료해서 메일로",
+      "speaker": "interlocutor",
+      "confidence": 0.452,
+      "position": {
+        "x": 232.0,
+        "y": 568.0,
+        "width": 751.0,
+        "height": 58.0
+      },
+      "group_id": 10,
+      "score": null,
+      "emotional_tone": null,
+      "impact_score": null,
+      "ai_message": null,
+      "suggested_alternative": null
+    },
+    {
+      "message_id": "5f227c24-02c8-4cd4-ae17-a2d7289c6d01",
+      "text": "발송쾌햇습니다",
+      "speaker": "interlocutor",
+      "confidence": 0.334,
+      "position": {
+        "x": 233.0,
+        "y": 634.0,
+        "width": 278.0,
+        "height": 54.0
+      },
+      "group_id": 10,
+      "score": null,
+      "emotional_tone": null,
+      "impact_score": null,
+      "ai_message": null,
+      "suggested_alternative": null
+    }
+  ]
+}

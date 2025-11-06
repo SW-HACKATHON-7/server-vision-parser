@@ -458,7 +458,8 @@ async def root():
             "POST /sessions/{session_id}/upload": "스크린샷 업로드",
             "POST /sessions/{session_id}/process": "세션 처리 (병합 + 외부 API)",
             "GET /sessions/{session_id}/messages": "메시지 조회",
-            "POST /sessions/{session_id}/search": "스크린샷으로 메시지 검색"
+            "POST /sessions/{session_id}/search": "스크린샷으로 메시지 검색",
+            "POST /sessions/{session_id}/view": "스크린샷으로 분석 결과 조회 (fuzzy matching)"
         }
     }
 
@@ -823,6 +824,142 @@ async def search_by_screenshot(
         if temp_path.exists():
             temp_path.unlink()
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+
+
+@app.post("/sessions/{session_id}/view")
+async def view_by_screenshots(
+    session_id: str = FastAPIPath(..., description="세션 ID"),
+    files: List[UploadFile] = File(..., description="조회용 스크린샷들")
+):
+    """
+    스크린샷으로 이미 분석된 메시지 조회 (Fuzzy matching 지원)
+
+    - 여러 스크린샷 업로드 가능
+    - OCR 수행 후 DB의 기존 분석 결과와 fuzzy matching
+    - 매칭된 메시지만 반환 (AI 분석 결과 포함)
+    - 매칭 안된 메시지는 제외
+
+    Args:
+        session_id: 세션 ID
+        files: 조회용 스크린샷 파일들
+
+    Returns:
+        매칭된 메시지 리스트 (AI 분석 결과 포함)
+    """
+    from difflib import SequenceMatcher
+
+    session = db.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if session['status'] != 'completed':
+        raise HTTPException(status_code=400, detail="Session not processed yet. Please call /process first.")
+
+    try:
+        print(f"\n{'='*70}")
+        print(f"View 요청: {session_id}")
+        print(f"{'='*70}")
+        print(f"📸 업로드된 스크린샷: {len(files)}개")
+
+        # 1. 임시 파일 저장 및 OCR 처리
+        temp_paths = []
+        all_view_messages = []
+
+        for idx, file in enumerate(files, 1):
+            # 임시 파일 저장
+            temp_path = UPLOAD_DIR / f"view_{uuid.uuid4()}{Path(file.filename).suffix}"
+            async with aiofiles.open(temp_path, 'wb') as out_file:
+                content = await file.read()
+                await out_file.write(content)
+            temp_paths.append(temp_path)
+
+            # OCR 처리
+            print(f"\n[{idx}/{len(files)}] OCR 처리: {file.filename}")
+            messages = process_single_screenshot(str(temp_path))
+            print(f"  추출된 메시지: {len(messages)}개")
+            all_view_messages.extend(messages)
+
+        print(f"\n총 OCR 추출 메시지: {len(all_view_messages)}개")
+
+        # 2. DB에서 기존 분석된 메시지 가져오기
+        db_messages = db.get_messages(session_id, order_by='sequence_order')
+        print(f"DB 저장된 메시지: {len(db_messages)}개")
+
+        # 3. Fuzzy matching으로 매칭
+        def text_similarity(text1: str, text2: str) -> float:
+            """텍스트 유사도 계산 (0.0 ~ 1.0)"""
+            return SequenceMatcher(None, text1, text2).ratio()
+
+        matched_results = []
+        SIMILARITY_THRESHOLD = 0.85  # 85% 이상 유사하면 매칭
+
+        for view_msg in all_view_messages:
+            best_match = None
+            best_score = 0.0
+
+            for db_msg in db_messages:
+                # speaker 일치 확인
+                if view_msg['speaker'] != db_msg['speaker']:
+                    continue
+
+                # 텍스트 유사도 계산
+                similarity = text_similarity(view_msg['text'], db_msg['text'])
+
+                if similarity > best_score:
+                    best_score = similarity
+                    best_match = db_msg
+
+            # 임계값 이상이면 매칭 성공
+            if best_match and best_score >= SIMILARITY_THRESHOLD:
+                # 중복 제거 (이미 추가된 message_id는 스킵)
+                if not any(m['message_id'] == best_match['message_id'] for m in matched_results):
+                    matched_results.append(best_match)
+                    print(f"  ✓ 매칭: '{view_msg['text'][:30]}...' → '{best_match['text'][:30]}...' (유사도: {best_score:.2f})")
+
+        # 4. 임시 파일 삭제
+        for temp_path in temp_paths:
+            if temp_path.exists():
+                temp_path.unlink()
+
+        # 5. 결과 정렬 (sequence_order 기준)
+        matched_results.sort(key=lambda x: x.get('sequence_order', 0))
+
+        print(f"\n✓ 최종 매칭된 메시지: {len(matched_results)}개")
+        print(f"{'='*70}\n")
+
+        # 6. Response 생성
+        message_models = [
+            {
+                'message_id': msg['message_id'],
+                'text': msg['text'],
+                'speaker': msg['speaker'],
+                'confidence': msg['confidence'],
+                'position': msg['position'],
+                'group_id': msg.get('group_id'),
+                'score': msg.get('score'),
+                'emotional_tone': msg.get('emotional_tone'),
+                'impact_score': msg.get('impact_score'),
+                'ai_message': msg.get('review_comment'),
+                'suggested_alternative': msg.get('suggested_alternative')
+            }
+            for msg in matched_results
+        ]
+
+        return JSONResponse(content={
+            "session_id": session_id,
+            "matched": len(matched_results) > 0,
+            "total_matched": len(matched_results),
+            "total_ocr_extracted": len(all_view_messages),
+            "messages": message_models
+        })
+
+    except Exception as e:
+        print(f"\n❌ View 실패: {e}")
+        # 임시 파일 정리
+        for temp_path in temp_paths:
+            if temp_path.exists():
+                temp_path.unlink()
+        raise HTTPException(status_code=500, detail=f"View failed: {str(e)}")
 
 
 if __name__ == "__main__":

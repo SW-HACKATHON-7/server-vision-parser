@@ -1,0 +1,160 @@
+{
+  "session_id": "e4dd5732-b526-4f88-9488-ece9b9f82bbe",
+  "total_messages": 9,
+  "total_screenshots": 1,
+  "messages": [
+    {
+      "message_id": "1dac33dc-9235-47f7-ad38-bd0be9e2ec11",
+      "text": "yex.nj",
+      "speaker": "interlocutor",
+      "confidence": 0.651,
+      "position": {
+        "x": 457.0,
+        "y": 244.0,
+        "width": 115.0,
+        "height": 43.0
+      },
+      "group_id": 1,
+      "score": null,
+      "emotional_tone": null,
+      "impact_score": null,
+      "ai_message": null
+    },
+    {
+      "message_id": "a599281b-3b24-44c8-a008-dadd371215d6",
+      "text": "15팀!!!",
+      "speaker": "interlocutor",
+      "confidence": 0.039,
+      "position": {
+        "x": 258.0,
+        "y": 489.0,
+        "width": 194.0,
+        "height": 51.0
+      },
+      "group_id": 1,
+      "score": null,
+      "emotional_tone": null,
+      "impact_score": null,
+      "ai_message": null
+    },
+    {
+      "message_id": "a75df701-247e-4fee-8aa0-d404af6c60e1",
+      "text": "오레전드 우리 그냥 gpt나오는거 첫번째 함 구구;",
+      "speaker": "user",
+      "confidence": 0.732,
+      "position": {
+        "x": 578.0,
+        "y": 632.0,
+        "width": 832.0,
+        "height": 447.0
+      },
+      "group_id": 2,
+      "score": 85.0,
+      "emotional_tone": "긍정적",
+      "impact_score": 2.0,
+      "ai_message": "친근하고 흥미로운 주제로 대화를 활발히 이어간 좋은 발언입니다."
+    },
+    {
+      "message_id": "f33788c6-b1bb-47a5-ac0f-fdb2520b4db0",
+      "text": "너네 팀장 L 구임",
+      "speaker": "interlocutor",
+      "confidence": 0.6,
+      "position": {
+        "x": 259.0,
+        "y": 1169.0,
+        "width": 345.0,
+        "height": 54.0
+      },
+      "group_id": 3,
+      "score": null,
+      "emotional_tone": null,
+      "impact_score": null,
+      "ai_message": null
+    },
+    {
+      "message_id": "7346e454-38ae-480f-a3d0-6475b671cf19",
+      "text": "랜드뽑기 하려고 하는 시도가 있어서 내가해버림",
+      "speaker": "user",
+      "confidence": 0.678,
+      "position": {
+        "x": 532.0,
+        "y": 1312.0,
+        "width": 878.0,
+        "height": 296.0
+      },
+      "group_id": 4,
+      "score": 70.0,
+      "emotional_tone": "중립",
+      "impact_score": 1.0,
+      "ai_message": "다소 비공식적이고 다소 모호한 표현이지만 대화 흐름은 자연스럽습니다."
+    },
+    {
+      "message_id": "2aa48ad4-f90e-4ee0-a005-2b33e5003e81",
+      "text": "한명 몰아주기앗논데",
+      "speaker": "interlocutor",
+      "confidence": 0.419,
+      "position": {
+        "x": 256.0,
+        "y": 2000.0,
+        "width": 449.0,
+        "height": 54.0
+      },
+      "group_id": 5,
+      "score": null,
+      "emotional_tone": null,
+      "impact_score": null,
+      "ai_message": null
+    },
+    {
+      "message_id": "d451bfec-74f3-445f-962b-0ba07520dff2",
+      "text": "치약 있냐 첫슬은 있는드",
+      "speaker": "user",
+      "confidence": 0.593,
+      "position": {
+        "x": 1021.0,
+        "y": 2143.0,
+        "width": 389.0,
+        "height": 296.0
+      },
+      "group_id": 6,
+      "score": 65.0,
+      "emotional_tone": "중립",
+      "impact_score": 0.0,
+      "ai_message": "친근하지만 상대가 이해하기 다소 어려운 표현이 있습니다."
+    },
+    {
+      "message_id": "7cbde0d0-6af2-432b-8c7b-1fa9a7448f0c",
+      "text": "민수아 이끄대",
+      "speaker": "interlocutor",
+      "confidence": 0.307,
+      "position": {
+        "x": 259.0,
+        "y": 2529.0,
+        "width": 298.0,
+        "height": 52.0
+      },
+      "group_id": 7,
+      "score": null,
+      "emotional_tone": null,
+      "impact_score": null,
+      "ai_message": null
+    },
+    {
+      "message_id": "6883b896-436b-440b-947e-93707c08e03c",
+      "text": "나이스",
+      "speaker": "user",
+      "confidence": 1.0,
+      "position": {
+        "x": 1174.0,
+        "y": 2672.0,
+        "width": 236.0,
+        "height": 145.0
+      },
+      "group_id": 8,
+      "score": 90.0,
+      "emotional_tone": "긍정적",
+      "impact_score": 2.0,
+      "ai_message": "간단하지만 상대방의 말에 긍정적인 피드백으로 대화를 부드럽게 이어갑니다."
+    }
+  ]
+}
