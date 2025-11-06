@@ -126,7 +126,7 @@ def get_ocr_reader():
         print("Initializing EasyOCR Reader (Optimized)...")
         ocr_reader = easyocr.Reader(
             ['ko', 'en'],
-            gpu=False,  # CPU 사용 (macOS에서 더 빠름)
+            gpu=True,  # GPU 사용
             download_enabled=True,  # 모델 다운로드 허용
             verbose=True  # 다운로드 진행상황 표시
         )
