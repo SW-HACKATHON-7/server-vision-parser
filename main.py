@@ -83,7 +83,10 @@ class ProcessSessionResponse(BaseModel):
 # ========== Configuration ==========
 
 # 외부 API 설정
-EXTERNAL_API_URL = "https://db1ef587c833.ngrok-free.app/analyze-messages"
+EXTERNAL_API_URL = "http://localhost:8080/analyze-messages"
+SUGGESTION_API_URL = "http://localhost:8080/suggestion-messages"
+START_CONVERSATION_URL = "http://localhost:8080/start-conversation"
+CONTINUE_CONVERSATION_URL = "http://localhost:8080/continue-conversation"
 EXTERNAL_API_KEY = None
 
 print(f"🔧 External API 설정:")
@@ -459,7 +462,10 @@ async def root():
             "POST /sessions/{session_id}/process": "세션 처리 (병합 + 외부 API)",
             "GET /sessions/{session_id}/messages": "메시지 조회",
             "POST /sessions/{session_id}/search": "스크린샷으로 메시지 검색",
-            "POST /sessions/{session_id}/view": "스크린샷으로 분석 결과 조회 (fuzzy matching)"
+            "POST /sessions/{session_id}/view": "스크린샷으로 분석 결과 조회 (fuzzy matching)",
+            "POST /sessions/{session_id}/predict-next": "다음 대화 예측",
+            "POST /start-conversation": "대화 시작 (프록시)",
+            "POST /continue-conversation": "대화 이어가기 (프록시)"
         }
     }
 
@@ -962,8 +968,307 @@ async def view_by_screenshots(
         raise HTTPException(status_code=500, detail=f"View failed: {str(e)}")
 
 
+@app.post("/sessions/{session_id}/predict-next")
+async def predict_next_message(session_id: str = FastAPIPath(..., description="세션 ID")):
+    """
+    세션의 다음 대화 예측
+
+    세션 ID를 받아서 해당 세션의 모든 메시지를 가져와
+    외부 AI API에 다음 대화를 예측 요청
+
+    Args:
+        session_id: 세션 ID
+
+    Returns:
+        예측된 다음 대화 제안 (style별 3가지)
+    """
+    # 세션 확인
+    session = db.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if session['status'] != 'completed':
+        raise HTTPException(status_code=400, detail="Session not processed yet. Please call /process first.")
+
+    try:
+        print(f"\n{'='*70}")
+        print(f"다음 대화 예측: {session_id}")
+        print(f"{'='*70}")
+
+        # 1. 세션의 모든 메시지 가져오기
+        messages = db.get_messages(session_id, order_by='sequence_order')
+        if not messages:
+            raise HTTPException(status_code=400, detail="No messages found in session")
+
+        print(f"📝 총 메시지: {len(messages)}개")
+
+        # 2. relationship 정보 가져오기
+        relationship = session.get('relationship', 'FRIEND')
+        relationship_info = session.get('relationship_info', '친한 친구')
+        print(f"💬 대화 상대: {relationship} ({relationship_info})")
+
+        # 3. 외부 API 요청 데이터 구성
+        request_data = {
+            'relationship': relationship,
+            'relationship_info': relationship_info,
+            'messages': [
+                {
+                    'message_id': msg['message_id'],
+                    'text': msg['text'],
+                    'speaker': msg['speaker'],
+                    'confidence': msg['confidence'],
+                    'group_id': msg.get('group_id')
+                }
+                for msg in messages
+            ]
+        }
+
+        print(f"\n🤖 외부 AI API 호출 중...")
+        print(f"   API URL: {SUGGESTION_API_URL or '(더미 모드)'}")
+
+        # 4. 외부 API 호출
+        if SUGGESTION_API_URL:
+            headers = {'Content-Type': 'application/json'}
+            if EXTERNAL_API_KEY:
+                headers['Authorization'] = f'Bearer {EXTERNAL_API_KEY}'
+
+            try:
+                async with aiohttp.ClientSession() as session_http:
+                    async with session_http.post(
+                        SUGGESTION_API_URL,
+                        json=request_data,
+                        headers=headers,
+                        timeout=aiohttp.ClientTimeout(total=30)
+                    ) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            print(f"✓ API 호출 성공")
+
+                            # 응답 형식 확인
+                            suggestions = data.get('response', data.get('suggestions', []))
+
+                            return JSONResponse(content={
+                                "session_id": session_id,
+                                "relationship": relationship,
+                                "relationship_info": relationship_info,
+                                "total_messages": len(messages),
+                                "suggestions": suggestions
+                            })
+                        else:
+                            error_text = await response.text()
+                            print(f"✗ API 호출 실패: HTTP {response.status}")
+                            print(f"   응답: {error_text}")
+                            raise HTTPException(
+                                status_code=502,
+                                detail=f"External API returned status {response.status}"
+                            )
+
+            except asyncio.TimeoutError:
+                print("✗ API 호출 타임아웃")
+                raise HTTPException(status_code=504, detail="External API timeout")
+            except Exception as e:
+                print(f"✗ API 호출 에러: {str(e)}")
+                raise HTTPException(status_code=502, detail=f"External API error: {str(e)}")
+
+        else:
+            # 더미 응답 (API URL이 없을 때)
+            print("⚠ 더미 모드: 샘플 응답 반환")
+            dummy_suggestions = [
+                {
+                    "style": "공감형",
+                    "text": "아, 그 부분 궁금하셨겠어요. 제가 먼저 말씀드렸어야 했네요.",
+                    "expected_impact": 2,
+                    "explanation": "상대의 궁금증을 인정하고 부드럽게 사과하는 응답"
+                },
+                {
+                    "style": "해결형",
+                    "text": "혹시 급하신가요? 지금 바로 확인해볼게요.",
+                    "expected_impact": 1,
+                    "explanation": "즉각적인 해결 의지를 보이는 응답"
+                },
+                {
+                    "style": "관계형",
+                    "text": "앗, 제가 미리 공유를 못 드렸네요. 바로 진행 상황 공유드리겠습니다!",
+                    "expected_impact": 3,
+                    "explanation": "책임감을 보이며 적극적으로 소통하려는 자세를 보이는 응답"
+                }
+            ]
+
+            return JSONResponse(content={
+                "session_id": session_id,
+                "relationship": relationship,
+                "relationship_info": relationship_info,
+                "total_messages": len(messages),
+                "suggestions": dummy_suggestions,
+                "note": "DUMMY MODE - External API URL not configured"
+            })
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"\n❌ 다음 대화 예측 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
+
+
+class StartConversationRequest(BaseModel):
+    """대화 시작 요청"""
+    relationship: str = Field(..., description="대화 상대와의 관계 (예: '연인', '친구', '상사')")
+
+
+class ContinueConversationRequest(BaseModel):
+    """대화 이어가기 요청"""
+    message: str = Field(..., description="사용자 메시지")
+    thread_id: str = Field(..., description="대화 스레드 ID")
+
+
+@app.post("/start-conversation")
+async def start_conversation(request: StartConversationRequest):
+    """
+    대화 시작 (외부 API 프록시)
+
+    Args:
+        relationship: 대화 상대와의 관계
+
+    Returns:
+        AI의 첫 메시지와 thread_id
+    """
+    print(f"\n{'='*70}")
+    print(f"대화 시작 프록시")
+    print(f"{'='*70}")
+    print(f"관계: {request.relationship}")
+
+    if not START_CONVERSATION_URL:
+        # 더미 응답
+        print("⚠ 더미 모드: 샘플 응답 반환")
+        return JSONResponse(content={
+            "message": "안녕! 요즘 어떻게 지내?",
+            "thread_id": f"thread_dummy_{uuid.uuid4().hex[:8]}"
+        })
+
+    try:
+        headers = {'Content-Type': 'application/json'}
+        if EXTERNAL_API_KEY:
+            headers['Authorization'] = f'Bearer {EXTERNAL_API_KEY}'
+
+        request_data = {"relationship": request.relationship}
+        print(f"→ 외부 API 호출: {START_CONVERSATION_URL}")
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                START_CONVERSATION_URL,
+                json=request_data,
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=30)
+            ) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    print(f"✓ API 호출 성공")
+                    print(f"  Thread ID: {data.get('thread_id')}")
+                    print(f"  Message: {data.get('message')}")
+                    return JSONResponse(content=data)
+                else:
+                    error_text = await response.text()
+                    print(f"✗ API 호출 실패: HTTP {response.status}")
+                    print(f"   응답: {error_text}")
+                    raise HTTPException(
+                        status_code=response.status,
+                        detail=f"External API error: {error_text}"
+                    )
+
+    except asyncio.TimeoutError:
+        print("✗ API 호출 타임아웃")
+        raise HTTPException(status_code=504, detail="External API timeout")
+    except aiohttp.ClientError as e:
+        print(f"✗ API 호출 에러: {str(e)}")
+        raise HTTPException(status_code=502, detail=f"External API error: {str(e)}")
+    except Exception as e:
+        print(f"✗ 예외 발생: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
+
+
+@app.post("/continue-conversation")
+async def continue_conversation(request: ContinueConversationRequest):
+    """
+    대화 이어가기 (외부 API 프록시)
+
+    Args:
+        message: 사용자 메시지
+        thread_id: 대화 스레드 ID
+
+    Returns:
+        AI의 응답 메시지 + 평가 결과
+    """
+    print(f"\n{'='*70}")
+    print(f"대화 이어가기 프록시")
+    print(f"{'='*70}")
+    print(f"Thread ID: {request.thread_id}")
+    print(f"User Message: {request.message}")
+
+    if not CONTINUE_CONVERSATION_URL:
+        # 더미 응답
+        print("⚠ 더미 모드: 샘플 응답 반환")
+        return JSONResponse(content={
+            "message": "그렇구나. 네 마음이 어떤지 좀 더 얘기해줄래?",
+            "response": {
+                "emotional_tone": "NEUTRAL",
+                "appropriateness_rating": 60,
+                "impact_score": 0,
+                "review_comment": "무난한 표현이지만 좀 더 감정을 담으면 좋겠어요.",
+                "suggested_alternative": "조금 더 구체적으로 네 감정을 표현해보는 건 어때?"
+            }
+        })
+
+    try:
+        headers = {'Content-Type': 'application/json'}
+        if EXTERNAL_API_KEY:
+            headers['Authorization'] = f'Bearer {EXTERNAL_API_KEY}'
+
+        request_data = {
+            "message": request.message,
+            "thread_id": request.thread_id
+        }
+        print(f"→ 외부 API 호출: {CONTINUE_CONVERSATION_URL}")
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                CONTINUE_CONVERSATION_URL,
+                json=request_data,
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=30)
+            ) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    print(f"✓ API 호출 성공")
+                    print(f"  AI Message: {data.get('message')}")
+                    if data.get('response'):
+                        print(f"  평가:")
+                        print(f"    - Tone: {data['response'].get('emotional_tone')}")
+                        print(f"    - Rating: {data['response'].get('appropriateness_rating')}")
+                        print(f"    - Impact: {data['response'].get('impact_score')}")
+                    return JSONResponse(content=data)
+                else:
+                    error_text = await response.text()
+                    print(f"✗ API 호출 실패: HTTP {response.status}")
+                    print(f"   응답: {error_text}")
+                    raise HTTPException(
+                        status_code=response.status,
+                        detail=f"External API error: {error_text}"
+                    )
+
+    except asyncio.TimeoutError:
+        print("✗ API 호출 타임아웃")
+        raise HTTPException(status_code=504, detail="External API timeout")
+    except aiohttp.ClientError as e:
+        print(f"✗ API 호출 에러: {str(e)}")
+        raise HTTPException(status_code=502, detail=f"External API error: {str(e)}")
+    except Exception as e:
+        print(f"✗ 예외 발생: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
+
+
 if __name__ == "__main__":
     import uvicorn
+    import aiohttp
     uvicorn.run(
         "main:app",
         host="0.0.0.0",

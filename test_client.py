@@ -12,7 +12,7 @@ import time
 class ChatOCRClient:
     """Chat OCR API V2 클라이언트"""
 
-    def __init__(self, base_url: str = "http://3.239.81.172/"):
+    def __init__(self, base_url: str = "http://3.239.81.172"):
         """
         Args:
             base_url: API 서버 URL
@@ -201,6 +201,95 @@ class ChatOCRClient:
 
         return data
 
+    def predict_next_message(self) -> Dict[str, Any]:
+        """다음 대화 예측"""
+        print("\n" + "="*70)
+        print("7. 다음 대화 예측")
+        print("="*70)
+
+        if not self.session_id:
+            raise ValueError("세션이 생성되지 않았습니다.")
+
+        print("AI가 다음 대화를 예측하는 중...")
+
+        response = requests.post(f"{self.base_url}/sessions/{self.session_id}/predict-next")
+        response.raise_for_status()
+
+        data = response.json()
+
+        print(f"✓ 예측 완료")
+        print(f"  Session ID: {data['session_id']}")
+        print(f"  대화 상대: {data['relationship']} ({data['relationship_info']})")
+        print(f"  분석된 메시지: {data['total_messages']}개")
+
+        if data.get('suggestions'):
+            print(f"\n  💡 추천 답변 (3가지):\n")
+            for idx, suggestion in enumerate(data['suggestions'], 1):
+                print(f"  [{idx}] {suggestion['style']}")
+                print(f"      \"{suggestion['text']}\"")
+                print(f"      → {suggestion['explanation']}")
+                print(f"      예상 영향: {suggestion['expected_impact']}")
+                print()
+
+        return data
+
+    def start_conversation(self, relationship: str = "연인") -> Dict[str, Any]:
+        """대화 시작"""
+        print("\n" + "="*70)
+        print("대화 시작 (프록시)")
+        print("="*70)
+
+        print(f"관계: {relationship}")
+
+        response = requests.post(
+            f"{self.base_url}/start-conversation",
+            json={"relationship": relationship}
+        )
+        response.raise_for_status()
+
+        data = response.json()
+
+        print(f"✓ 대화 시작 완료")
+        print(f"  Thread ID: {data['thread_id']}")
+        print(f"  AI 메시지: \"{data['message']}\"")
+
+        return data
+
+    def continue_conversation(self, message: str, thread_id: str) -> Dict[str, Any]:
+        """대화 이어가기"""
+        print("\n" + "="*70)
+        print("대화 이어가기 (프록시)")
+        print("="*70)
+
+        print(f"Thread ID: {thread_id}")
+        print(f"User 메시지: \"{message}\"")
+
+        response = requests.post(
+            f"{self.base_url}/continue-conversation",
+            json={
+                "message": message,
+                "thread_id": thread_id
+            }
+        )
+        response.raise_for_status()
+
+        data = response.json()
+
+        print(f"\n✓ 대화 이어가기 완료")
+        print(f"  AI 메시지: \"{data['message']}\"")
+
+        if data.get('response'):
+            resp = data['response']
+            print(f"\n  📊 평가 결과:")
+            print(f"    - 감정 톤: {resp.get('emotional_tone')}")
+            print(f"    - 적절성 평가: {resp.get('appropriateness_rating')}/100")
+            print(f"    - 영향 점수: {resp.get('impact_score')}")
+            print(f"    - 피드백: {resp.get('review_comment')}")
+            if resp.get('suggested_alternative'):
+                print(f"    - 추천 표현: {resp.get('suggested_alternative')}")
+
+        return data
+
     def save_results_to_file(self, messages_data: Dict[str, Any], output_path: str = "session_result.json"):
         """결과를 파일로 저장"""
         with open(output_path, 'w', encoding='utf-8') as f:
@@ -256,6 +345,9 @@ def main():
             print("="*70)
             search_result = client.search_by_screenshot(existing_files[0])
 
+        # 7. 다음 대화 예측
+        prediction_result = client.predict_next_message()
+
         print("\n" + "="*70)
         print("✓ 모든 테스트 완료!")
         print("="*70)
@@ -272,5 +364,49 @@ def main():
         traceback.print_exc()
 
 
+def test_conversation():
+    """대화 프록시 기능 테스트"""
+    print("="*70)
+    print("    대화 프록시 API 테스트")
+    print("="*70)
+
+    try:
+        client = ChatOCRClient()
+
+        # 1. 대화 시작
+        start_result = client.start_conversation(relationship="연인")
+        thread_id = start_result['thread_id']
+
+        # 2. 대화 이어가기 (여러 턴)
+        messages = [
+            "싫어",
+            "요즘 바빠서 그래",
+            "미안해 좀 더 신경 쓸게"
+        ]
+
+        for msg in messages:
+            time.sleep(1)  # 잠시 대기
+            client.continue_conversation(msg, thread_id)
+
+        print("\n" + "="*70)
+        print("✓ 대화 테스트 완료!")
+        print("="*70)
+
+    except requests.exceptions.ConnectionError:
+        print("\n❌ API 서버에 연결할 수 없습니다.")
+        print("   서버가 실행 중인지 확인하세요: python main.py")
+
+    except Exception as e:
+        print(f"\n❌ 에러 발생: {str(e)}")
+        import traceback
+        traceback.print_exc()
+
+
 if __name__ == "__main__":
-    main()
+    import sys
+
+    # 인자로 'conversation' 전달 시 대화 테스트 실행
+    if len(sys.argv) > 1 and sys.argv[1] == "conversation":
+        test_conversation()
+    else:
+        main()
