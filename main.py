@@ -1,8 +1,8 @@
 """
-VisionParser API
+Chat OCR API V2 - Session-based Multi-screenshot Management
 """
 
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Path as FastAPIPath, Query, Body
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -10,58 +10,98 @@ from typing import List, Optional, Dict, Any
 import cv2
 import numpy as np
 import easyocr
-import json
 import uuid
+import os
 from datetime import datetime
 from pathlib import Path
 import aiofiles
 import shutil
 
+# 로컬 모듈
+from database import Database
+from merge_logic import (
+    merge_multiple_screenshots,
+    deduplicate_messages,
+    assign_global_group_ids
+)
+from external_service import get_external_service
 
-# Pydantic 모델 정의
-class Position(BaseModel):
-    """위치 정보 모델"""
-    x: float = Field(..., description="X 좌표")
-    y: float = Field(..., description="Y 좌표")
-    width: float = Field(..., description="너비")
-    height: float = Field(..., description="높이")
-
-
-class ChatMessage(BaseModel):
-    """채팅 메시지 모델"""
-    id: int = Field(..., description="메시지 ID")
-    text: str = Field(..., description="추출된 텍스트")
-    confidence: float = Field(..., description="OCR 신뢰도 (0-1)")
-    speaker: str = Field(..., description="발화자 (user: 사용자, interlocutor: 대화상대)")
-    position: Position = Field(..., description="말풍선 위치")
-    group_id: int = Field(..., description="같은 speaker의 연속 메시지 그룹 ID")
+# OCR 함수들 (main_old.py에서 통합)
+# get_ocr_reader, detect_chat_bubbles, extract_text_from_roi 등은 아래에 정의됨
 
 
-class ChatAnalysisResult(BaseModel):
-    """채팅 분석 결과 모델"""
-    analysis_id: str = Field(..., description="분석 ID")
-    image_path: str = Field(..., description="업로드된 이미지 경로")
-    analyzed_at: str = Field(..., description="분석 시각")
-    total_messages: int = Field(..., description="총 메시지 수")
-    image_size: Dict[str, int] = Field(..., description="이미지 크기 (width, height)")
-    messages: List[ChatMessage] = Field(..., description="추출된 메시지 리스트")
+# ========== Pydantic Models ==========
+
+class SessionCreateResponse(BaseModel):
+    """세션 생성 응답"""
+    session_id: str
+    created_at: str
+    status: str
 
 
-class AnalysisResponse(BaseModel):
-    """API 응답 모델"""
-    status: str = Field(..., description="응답 상태 (success/error)")
-    message: str = Field(..., description="응답 메시지")
-    data: Optional[ChatAnalysisResult] = Field(None, description="분석 결과 데이터")
+class ScreenshotUploadResponse(BaseModel):
+    """스크린샷 업로드 응답"""
+    screenshot_id: str
+    session_id: str
+    upload_order: int
+    processed: bool
+    message: str
 
 
-# FastAPI 앱 생성
+class MessageModel(BaseModel):
+    """메시지 모델"""
+    message_id: str
+    text: str
+    speaker: str
+    confidence: float
+    position: Dict[str, float]
+    group_id: Optional[int] = None
+    score: Optional[float] = None
+    emotional_tone: Optional[str] = None
+    impact_score: Optional[float] = None
+    ai_message: Optional[str] = None
+
+
+class SessionMessagesResponse(BaseModel):
+    """세션 메시지 조회 응답"""
+    session_id: str
+    total_messages: int
+    total_screenshots: int
+    messages: List[MessageModel]
+
+
+class ProcessSessionResponse(BaseModel):
+    """세션 처리 응답"""
+    session_id: str
+    status: str
+    total_screenshots: int
+    total_messages: int
+    merge_info: Dict[str, Any]
+    external_api_called: bool
+
+
+# ========== Configuration ==========
+
+# 외부 API 설정
+EXTERNAL_API_URL = "https://db1ef587c833.ngrok-free.app/analyze-messages"
+EXTERNAL_API_KEY = None
+
+print(f"🔧 External API 설정:")
+if EXTERNAL_API_URL:
+    print(f"  - URL: {EXTERNAL_API_URL}")
+    print(f"  - API Key: {'설정됨' if EXTERNAL_API_KEY else '없음'}")
+else:
+    print(f"  - 더미 모드 (EXTERNAL_API_URL 없음)")
+
+
+# ========== FastAPI App ==========
+
 app = FastAPI(
-    title="Chat OCR API",
-    description="카카오톡 채팅 말풍선 이미지를 분석하여 텍스트를 추출하는 API",
-    version="1.0.0"
+    title="Chat OCR API V2",
+    description="세션 기반 다중 스크린샷 병합 및 OCR 분석 API",
+    version="2.0.0"
 )
 
-# CORS 설정
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -71,38 +111,32 @@ app.add_middleware(
 )
 
 # 전역 변수
+db = Database()
 ocr_reader = None
-UPLOAD_DIR = Path("uploads")
-RESULTS_DIR = Path("results")
-
-# 디렉토리 생성
+UPLOAD_DIR = Path("uploads_v2")
 UPLOAD_DIR.mkdir(exist_ok=True)
-RESULTS_DIR.mkdir(exist_ok=True)
 
+
+# ========== OCR Functions (최적화됨) ==========
 
 def get_ocr_reader():
-    """OCR 리더 싱글톤"""
+    """OCR 리더 싱글톤 (최적화 버전)"""
     global ocr_reader
     if ocr_reader is None:
-        print("Initializing EasyOCR Reader...")
-        ocr_reader = easyocr.Reader(['ko', 'en'], gpu=True)
+        print("Initializing EasyOCR Reader (Optimized)...")
+        ocr_reader = easyocr.Reader(
+            ['ko', 'en'],
+            gpu=False,  # CPU 사용 (macOS에서 더 빠름)
+            download_enabled=False,  # 모델 재다운로드 방지
+            verbose=False  # 로그 줄이기
+        )
         print("EasyOCR Reader initialized successfully")
     return ocr_reader
 
 
 def is_ui_element_or_noise(text: str, bubble: Dict[str, Any]) -> bool:
-    """
-    UI 요소나 노이즈 텍스트 필터링
-
-    Args:
-        text: OCR 텍스트
-        bubble: 말풍선 정보
-
-    Returns:
-        필터링 대상이면 True
-    """
+    """UI 요소나 노이즈 텍스트 필터링"""
     import re
-
     text_clean = text.strip()
 
     # UI 요소
@@ -110,18 +144,15 @@ def is_ui_element_or_noise(text: str, bubble: Dict[str, Any]) -> bool:
     if any(keyword in text_clean for keyword in ui_keywords):
         return True
 
-    # 순수 시간만 있는 경우 (짧고 시간 패턴만)
-    # 예: "오후 7:42", "95 7:43" 등
+    # 순수 시간만 있는 경우
     if len(text_clean) < 15:
-        # 시간 패턴이 전체 텍스트의 대부분을 차지하는 경우
         time_match = re.search(r'(오전|오후|AM|PM)?\s*\d{1,2}[:\.]?\d{2}', text_clean)
         if time_match:
-            # 시간 부분을 제거했을 때 남는 텍스트가 거의 없으면 필터링
             remaining = text_clean.replace(time_match.group(), '').strip()
-            if len(remaining) <= 3:  # 3글자 이하만 남으면 시간 전용
+            if len(remaining) <= 3:
                 return True
 
-    # 너무 짧은 텍스트 (1-2글자)
+    # 너무 짧은 텍스트
     if len(text_clean) <= 2:
         return True
 
@@ -133,86 +164,50 @@ def is_ui_element_or_noise(text: str, bubble: Dict[str, Any]) -> bool:
 
 
 def is_repeated_sender_name(text: str, bubble: Dict[str, Any], previous_messages: List[Dict]) -> bool:
-    """
-    반복되는 발신자 이름 필터링
-
-    Args:
-        text: 현재 텍스트
-        bubble: 현재 말풍선
-        previous_messages: 이전 메시지 리스트
-
-    Returns:
-        필터링 대상이면 True
-    """
-    # 왼쪽(받은 메시지)이고, 크기가 작고, 짧은 텍스트
+    """반복되는 발신자 이름 필터링"""
     if bubble['bubble_type'] == 'left' and bubble['width'] < 80 and len(text) <= 4:
-        # 최근 3개 메시지에서 같은 텍스트 반복 체크
         recent_texts = [msg['text'] for msg in previous_messages[-3:]]
         if recent_texts.count(text) >= 2:
             return True
-
-        # 발신자 이름으로 보이는 패턴 (짧고 왼쪽 상단)
         if bubble['height'] < 30 and len(text) <= 5:
             return True
-
     return False
 
 
-def detect_chat_bubbles(image: np.ndarray) -> List[Dict[str, Any]]:
-    """
-    이미지에서 채팅 말풍선 영역 감지 (라이트/다크 모드 자동 감지)
-
-    Args:
-        image: OpenCV 이미지 (BGR)
-
-    Returns:
-        감지된 말풍선 리스트
-    """
-    # 그레이스케일 변환
+def detect_chat_bubbles(image: np.ndarray) -> tuple:
+    """이미지에서 채팅 말풍선 영역 감지"""
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-    # 배경 밝기 판단
     avg_brightness = np.mean(gray)
     is_dark_mode = avg_brightness < 100
 
     if is_dark_mode:
-        # 다크모드: 밝은 말풍선 찾기
         _, binary = cv2.threshold(gray, 50, 255, cv2.THRESH_BINARY)
     else:
-        # 라이트모드: 어두운 말풍선 찾기
         _, binary = cv2.threshold(gray, 240, 255, cv2.THRESH_BINARY_INV)
 
-    # 노이즈 제거
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
     binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel, iterations=3)
     binary = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel, iterations=1)
 
-    # 윤곽선 찾기
     contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
     print(f"  - 총 {len(contours)}개 윤곽선 발견")
 
     bubbles = []
     img_height, img_width = image.shape[:2]
     filtered_count = {'size': 0, 'area': 0, 'aspect': 0, 'ignored_region': 0}
-    
-    # Define ignored regions
+
     TOP_IGNORE_PX = 200
     BOTTOM_IGNORE_PX = 200
-    
-    # Calculate effective processing height
     effective_top = TOP_IGNORE_PX
     effective_bottom = img_height - BOTTOM_IGNORE_PX
 
     for contour in contours:
         x, y, w, h = cv2.boundingRect(contour)
 
-        # Ignore bubbles in the top 200px and bottom 200px
         if y < effective_top or (y + h) > effective_bottom:
             filtered_count['ignored_region'] += 1
             continue
 
-        # 필터링 (더 관대한 조건)
         if w < 40 or h < 15:
             filtered_count['size'] += 1
             continue
@@ -220,19 +215,16 @@ def detect_chat_bubbles(image: np.ndarray) -> List[Dict[str, Any]]:
             filtered_count['size'] += 1
             continue
 
-        # 면적 체크
         area = cv2.contourArea(contour)
         if area < 500:
             filtered_count['area'] += 1
             continue
 
-        # 종횡비 체크
         aspect_ratio = w / h
         if aspect_ratio < 0.3 or aspect_ratio > 15:
             filtered_count['aspect'] += 1
             continue
 
-        # 말풍선 타입 결정 (좌측/우측 위치로 판단)
         center_x = x + w / 2
         bubble_type = 'right' if center_x > img_width * 0.5 else 'left'
 
@@ -244,46 +236,30 @@ def detect_chat_bubbles(image: np.ndarray) -> List[Dict[str, Any]]:
             'bubble_type': bubble_type
         })
 
-    # y 좌표로 정렬 (위에서 아래로)
     bubbles.sort(key=lambda b: b['y'])
-
     print(f"  - 필터링됨: 크기({filtered_count['size']}), 면적({filtered_count['area']}), 종횡비({filtered_count['aspect']}), 무시된 영역({filtered_count['ignored_region']})")
     print(f"  - 병합 전 말풍선: {len(bubbles)}개")
 
-    # 인접한 말풍선 병합 (같은 줄에 있는 작은 조각들)
     merged_bubbles = merge_nearby_bubbles(bubbles, img_width, img_height)
     print(f"  - 병합 후 말풍선: {len(merged_bubbles)}개")
 
-    return merged_bubbles, binary  # 디버그용 이진화 이미지도 반환
+    return merged_bubbles, binary
 
 
 def merge_nearby_bubbles(bubbles: List[Dict[str, Any]], img_width: int, img_height: int) -> List[Dict[str, Any]]:
-    """
-    Y와 X 위치 기반으로 그룹핑 후 병합 (가로/세로 인접성 모두 고려)
-
-    Args:
-        bubbles: 말풍선 리스트
-        img_width: 이미지 너비
-        img_height: 이미지 높이
-
-    Returns:
-        병합된 말풍선 리스트
-    """
+    """인접한 말풍선 병합"""
     if not bubbles:
         return []
 
-    # 1단계: 프로필 이미지 같은 정사각형 제외
     filtered = []
     for b in bubbles:
         aspect = b['width'] / b['height'] if b['height'] > 0 else 0
-        # 정사각형에 가까운 것 제외 (프로필 이미지)
         if 0.8 < aspect < 1.2 and b['width'] > 60 and b['height'] > 60:
             continue
         filtered.append(b)
 
     bubbles = sorted(filtered, key=lambda b: (b['y'], b['x']))
 
-    # 2단계: 인접한 버블 그룹핑
     groups = []
     used = [False] * len(bubbles)
 
@@ -293,11 +269,9 @@ def merge_nearby_bubbles(bubbles: List[Dict[str, Any]], img_width: int, img_heig
 
         current_group = [bubbles[i]]
         used[i] = True
-
-        # 그룹을 확장하기 위한 큐
         queue = [bubbles[i]]
-        
         head = 0
+
         while head < len(queue):
             current_bubble = queue[head]
             head += 1
@@ -307,38 +281,30 @@ def merge_nearby_bubbles(bubbles: List[Dict[str, Any]], img_width: int, img_heig
                     continue
 
                 other_bubble = bubbles[j]
-
-                # 수직 인접성 체크 (Y 좌표 중심이 서로의 높이 안에 있는지)
                 y_center_current = current_bubble['y'] + current_bubble['height'] / 2
                 y_center_other = other_bubble['y'] + other_bubble['height'] / 2
-                
-                is_vertically_close = abs(y_center_current - y_center_other) < (current_bubble['height'] + other_bubble['height']) / 2
 
-                # 수평 인접성 체크 (X 좌표 간격)
+                is_vertically_close = abs(y_center_current - y_center_other) < (current_bubble['height'] + other_bubble['height']) / 2
                 x_dist = max(0, max(current_bubble['x'], other_bubble['x']) - min(current_bubble['x'] + current_bubble['width'], other_bubble['x'] + other_bubble['width']))
-                
-                is_horizontally_close = x_dist < 100  # 100px 이내
+                is_horizontally_close = x_dist < 100
 
                 if is_vertically_close and is_horizontally_close:
                     current_group.append(other_bubble)
                     used[j] = True
                     queue.append(other_bubble)
-        
+
         groups.append(current_group)
 
-    # 3단계: 각 그룹을 하나의 말풍선으로 병합
     merged = []
     for group in groups:
         if not group:
             continue
 
-        # 전체 바운딩 박스 계산
         min_x = min(b['x'] for b in group)
         max_x = max(b['x'] + b['width'] for b in group)
         min_y = min(b['y'] for b in group)
         max_y = max(b['y'] + b['height'] for b in group)
 
-        # 중심으로 speaker 판별
         center_x = (min_x + max_x) / 2
         bubble_type = 'right' if center_x > img_width * 0.5 else 'left'
 
@@ -354,20 +320,9 @@ def merge_nearby_bubbles(bubbles: List[Dict[str, Any]], img_width: int, img_heig
 
 
 def extract_text_from_roi(image: np.ndarray, bubble: Dict[str, Any], reader) -> tuple:
-    """
-    ROI 영역에서 텍스트 추출
-
-    Args:
-        image: 원본 이미지
-        bubble: 말풍선 영역 정보
-        reader: EasyOCR 리더
-
-    Returns:
-        (텍스트, 신뢰도)
-    """
+    """ROI 영역에서 텍스트 추출 (최적화됨)"""
     x, y, w, h = bubble['x'], bubble['y'], bubble['width'], bubble['height']
 
-    # 패딩 추가
     padding = 5
     x1 = max(0, x - padding)
     y1 = max(0, y - padding)
@@ -380,12 +335,16 @@ def extract_text_from_roi(image: np.ndarray, bubble: Dict[str, Any], reader) -> 
         return "", 0.0
 
     try:
-        results = reader.readtext(roi)
+        results = reader.readtext(
+            roi,
+            paragraph=False,
+            detail=1,
+            batch_size=1
+        )
 
         if not results:
             return "", 0.0
 
-        # 텍스트 결합
         texts = []
         confidences = []
 
@@ -410,333 +369,460 @@ def extract_text_from_roi(image: np.ndarray, bubble: Dict[str, Any], reader) -> 
         return "", 0.0
 
 
-def group_consecutive_messages(messages: List[Dict], gap_threshold: int = 50) -> List[Dict]:
+# ========== Helper Functions ==========
+
+def process_single_screenshot(image_path: str) -> List[Dict[str, Any]]:
     """
-    같은 speaker의 연속 메시지를 그룹핑
+    단일 스크린샷에서 메시지 추출 (main.py 로직 재사용)
 
     Args:
-        messages: 메시지 리스트 (y 좌표로 정렬되어 있어야 함)
-        gap_threshold: 같은 그룹으로 간주할 최대 간격 (px)
+        image_path: 이미지 경로
 
     Returns:
-        group_id가 추가된 메시지 리스트
+        추출된 메시지 리스트
     """
-    if not messages:
-        return []
+    global ocr_reader
 
-    grouped_messages = []
-    current_group_id = 1
+    # 이미지 로드
+    image = cv2.imread(image_path)
+    if image is None:
+        raise ValueError(f"Failed to load image: {image_path}")
 
-    for i, msg in enumerate(messages):
-        if i == 0:
-            # 첫 메시지
-            msg['group_id'] = current_group_id
-            grouped_messages.append(msg)
+    # OCR 리더 가져오기
+    if ocr_reader is None:
+        ocr_reader = get_ocr_reader()
+
+    # 말풍선 감지
+    bubbles, debug_binary = detect_chat_bubbles(image)
+    print(f"  감지된 말풍선: {len(bubbles)}개")
+
+    # 텍스트 추출
+    messages = []
+
+    for idx, bubble in enumerate(bubbles, 1):
+        text, confidence = extract_text_from_roi(image, bubble, ocr_reader)
+
+        if not text:
             continue
 
-        prev_msg = grouped_messages[-1]
+        # 필터링
+        if is_ui_element_or_noise(text, bubble):
+            continue
 
-        # 같은 speaker인지 확인
-        same_speaker = (msg['speaker'] == prev_msg['speaker'])
+        if is_repeated_sender_name(text, bubble, messages):
+            continue
 
-        # 이전 메시지의 bottom과 현재 메시지의 top 사이 간격 계산
-        prev_bottom = prev_msg['position']['y'] + prev_msg['position']['height']
-        current_top = msg['position']['y']
-        gap = current_top - prev_bottom
+        # speaker 변환
+        speaker = 'user' if bubble['bubble_type'] == 'right' else 'interlocutor'
 
-        # 같은 speaker이고 간격이 threshold 이하면 같은 그룹
-        if same_speaker and gap <= gap_threshold:
-            msg['group_id'] = current_group_id
-        else:
-            # 새 그룹 시작
-            current_group_id += 1
-            msg['group_id'] = current_group_id
+        message_data = {
+            'text': text,
+            'confidence': round(confidence, 3),
+            'speaker': speaker,
+            'position': {
+                'x': float(bubble['x']),
+                'y': float(bubble['y']),
+                'width': float(bubble['width']),
+                'height': float(bubble['height'])
+            }
+        }
+        messages.append(message_data)
 
-        grouped_messages.append(msg)
+    # 후처리: 반복되는 발신자 이름 제거
+    interlocutor_texts = [
+        msg['text'] for msg in messages
+        if msg['speaker'] == 'interlocutor' and len(msg['text'].strip()) <= 5
+    ]
+    text_counts = {text: interlocutor_texts.count(text) for text in set(interlocutor_texts)}
+    names_to_filter = {text for text, count in text_counts.items() if count > 1}
 
-    return grouped_messages
+    if names_to_filter:
+        messages = [
+            msg for msg in messages
+            if not (msg['speaker'] == 'interlocutor' and msg['text'] in names_to_filter)
+        ]
 
-
-def save_visualization(image_path: str, messages: List[Dict], output_path: Path):
-    """
-    분석 결과를 시각화한 이미지 저장
-
-    Args:
-        image_path: 원본 이미지 경로
-        messages: 메시지 리스트
-        output_path: 출력 경로
-    """
-    image = cv2.imread(image_path)
-
-    for msg in messages:
-        pos = msg['position']
-        x, y = int(pos['x']), int(pos['y'])
-        w, h = int(pos['width']), int(pos['height'])
-
-        # 색상: 대화상대(파랑), 사용자(초록)
-        color = (255, 0, 0) if msg['speaker'] == 'interlocutor' else (0, 255, 0)
-
-        # 바운딩 박스
-        cv2.rectangle(image, (x, y), (x + w, y + h), color, 2)
-
-        # ID 표시
-        label = f"#{msg['id']}"
-        cv2.putText(image, label, (x, y - 5),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
-
-        # 좌표에 빨간색 점 찍기 (x, y 시작점) - 점만 100px 오른쪽으로 이동
-        cv2.circle(image, (x + 100, y), radius=5, color=(0, 0, 255), thickness=-1)
-
-    cv2.imwrite(str(output_path), image)
+    return messages
 
 
-# API 엔드포인트
+# ========== API Endpoints ==========
+
 @app.get("/")
 async def root():
     """API 루트"""
     return {
-        "message": "Chat OCR API",
-        "version": "1.0.0",
+        "message": "Chat OCR API V2 - Session-based",
+        "version": "2.0.0",
         "endpoints": {
-            "POST /analyze": "채팅 이미지 분석",
-            "GET /health": "헬스 체크"
+            "POST /sessions": "새 세션 생성",
+            "POST /sessions/{session_id}/upload": "스크린샷 업로드",
+            "POST /sessions/{session_id}/process": "세션 처리 (병합 + 외부 API)",
+            "GET /sessions/{session_id}/messages": "메시지 조회",
+            "POST /sessions/{session_id}/search": "스크린샷으로 메시지 검색"
         }
     }
 
 
-@app.get("/health")
-async def health_check():
-    """헬스 체크"""
-    return {"status": "healthy"}
-
-
-@app.post("/analyze", response_model=AnalysisResponse)
-async def analyze_chat_image(file: UploadFile = File(...)):
-    """
-    채팅 이미지 분석 엔드포인트
-
-    Args:
-        file: 업로드된 이미지 파일
-
-    Returns:
-        분석 결과 JSON
-    """
-    # 파일 검증
-    if not file.content_type.startswith('image/'):
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid file type. Please upload an image file."
-        )
-
-    # 고유 ID 생성
-    analysis_id = str(uuid.uuid4())
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-
-    # 파일 저장
-    file_extension = Path(file.filename).suffix
-    upload_filename = f"{timestamp}_{analysis_id[:8]}{file_extension}"
-    upload_path = UPLOAD_DIR / upload_filename
+@app.post("/sessions", response_model=SessionCreateResponse)
+async def create_session():
+    """새 세션 생성"""
+    session_id = str(uuid.uuid4())
 
     try:
+        session = db.create_session(session_id)
+        print(f"✓ 세션 생성: {session_id}")
+
+        return SessionCreateResponse(
+            session_id=session['session_id'],
+            created_at=session['created_at'],
+            status=session['status']
+        )
+
+    except Exception as e:
+        print(f"세션 생성 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create session: {str(e)}")
+
+
+@app.post("/sessions/{session_id}/upload", response_model=ScreenshotUploadResponse)
+async def upload_screenshot(
+    session_id: str = FastAPIPath(..., description="세션 ID"),
+    file: UploadFile = File(...)
+):
+    """
+    세션에 스크린샷 업로드
+
+    Args:
+        session_id: 세션 ID
+        file: 이미지 파일
+
+    Returns:
+        업로드 결과
+    """
+    # 세션 확인
+    session = db.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # 파일 검증
+    if not file.content_type.startswith('image/'):
+        raise HTTPException(status_code=400, detail="Invalid file type")
+
+    try:
+        # 업로드 순서 계산
+        existing_screenshots = db.get_screenshots(session_id)
+        upload_order = len(existing_screenshots) + 1
+
         # 파일 저장
-        async with aiofiles.open(upload_path, 'wb') as out_file:
+        screenshot_id = str(uuid.uuid4())
+        file_extension = Path(file.filename).suffix
+        filename = f"{session_id}_{upload_order}_{screenshot_id[:8]}{file_extension}"
+        file_path = UPLOAD_DIR / filename
+
+        async with aiofiles.open(file_path, 'wb') as out_file:
             content = await file.read()
             await out_file.write(content)
 
-        print(f"Uploaded file saved: {upload_path}")
-
-        # 이미지 로드
-        image = cv2.imread(str(upload_path))
+        # 이미지 크기 확인
+        image = cv2.imread(str(file_path))
         if image is None:
             raise ValueError("Failed to load image")
 
         img_height, img_width = image.shape[:2]
-        print(f"Image size: {img_width}x{img_height}")
 
-        # OCR 리더 가져오기
-        reader = get_ocr_reader()
-
-        # 말풍선 감지
-        bubbles, debug_binary = detect_chat_bubbles(image)
-        print(f"Detected {len(bubbles)} chat bubbles")
-
-        # 텍스트 추출
-        messages = []
-        processing_log = []
-
-        print("\n=== OCR 처리 시작 ===")
-        processing_log.append("\n=== OCR 처리 상세 로그 ===\n")
-
-        for idx, bubble in enumerate(bubbles, 1):
-            bubble_log = []
-            bubble_log.append(f"\n[Bubble {idx}/{len(bubbles)}]")
-            bubble_log.append(f"  위치: x={bubble['x']}, y={bubble['y']}, w={bubble['width']}, h={bubble['height']}")
-            bubble_log.append(f"  타입: {bubble['bubble_type']}")
-
-            print(f"\n[Bubble {idx}/{len(bubbles)}]")
-            print(f"  위치: x={bubble['x']}, y={bubble['y']}, w={bubble['width']}, h={bubble['height']}")
-            print(f"  타입: {bubble['bubble_type']}")
-
-            text, confidence = extract_text_from_roi(image, bubble, reader)
-
-            if not text:
-                bubble_log.append(f"  결과 없음")
-                processing_log.extend(bubble_log)
-                print(f"  결과 없음")
-                continue
-
-            bubble_log.append(f"  OCR: '{text}' (신뢰도: {confidence:.3f})")
-            print(f"  OCR: '{text}' (신뢰도: {confidence:.3f})")
-
-            # UI 요소/노이즈 필터링
-            if is_ui_element_or_noise(text, bubble):
-                bubble_log.append(f"  SKIP - UI/Noise 필터링")
-                processing_log.extend(bubble_log)
-                print(f"  SKIP - UI/Noise 필터링")
-                continue
-
-            # 반복되는 발신자 이름 필터링
-            if is_repeated_sender_name(text, bubble, messages):
-                bubble_log.append(f"  SKIP - 반복되는 발신자 이름")
-                processing_log.extend(bubble_log)
-                print(f"  SKIP - 반복되는 발신자 이름")
-                continue
-
-            # bubble_type을 speaker로 변환
-            speaker = 'user' if bubble['bubble_type'] == 'right' else 'interlocutor'
-
-            message_data = {
-                'id': len(messages) + 1,
-                'text': text,
-                'confidence': round(confidence, 3),
-                'speaker': speaker,
-                'position': {
-                    'x': float(bubble['x']),
-                    'y': float(bubble['y']),
-                    'width': float(bubble['width']),
-                    'height': float(bubble['height'])
-                }
-            }
-            messages.append(message_data)
-            bubble_log.append(f"  추가 - 메시지 #{len(messages)} (speaker: {speaker})")
-            processing_log.extend(bubble_log)
-            print(f"  추가 - 메시지 #{len(messages)} (speaker: {speaker})")
-
-        print(f"\n=== OCR 완료: 총 {len(messages)}개 메시지 추출 ===")
-
-        # 후처리: 반복되는 발신자 이름 제거
-        interlocutor_texts = [
-            msg['text'] for msg in messages 
-            if msg['speaker'] == 'interlocutor' and len(msg['text'].strip()) <= 5
-        ]
-        text_counts = {text: interlocutor_texts.count(text) for text in set(interlocutor_texts)}
-        
-        names_to_filter = {text for text, count in text_counts.items() if count > 1}
-
-        if names_to_filter:
-            print(f"\n=== 발신자 이름 필터링 ===")
-            print(f"필터링 대상 이름: {', '.join(names_to_filter)}")
-            
-            original_message_count = len(messages)
-            
-            messages = [
-                msg for msg in messages 
-                if not (msg['speaker'] == 'interlocutor' and msg['text'] in names_to_filter)
-            ]
-            
-            print(f"{original_message_count - len(messages)}개 메시지 제거됨")
-
-            # 메시지 ID 재설정
-            for i, msg in enumerate(messages, 1):
-                msg['id'] = i
-
-        # 메시지 그룹핑 (같은 speaker의 연속 메시지)
-        print("\n=== 메시지 그룹핑 중 ===")
-        messages = group_consecutive_messages(messages, gap_threshold=100)
-
-        # 그룹 정보 출력
-        group_counts = {}
-        for msg in messages:
-            group_id = msg['group_id']
-            group_counts[group_id] = group_counts.get(group_id, 0) + 1
-
-        print(f"총 {len(group_counts)}개 그룹 생성됨")
-        for group_id, count in sorted(group_counts.items()):
-            if count > 1:
-                print(f"  그룹 {group_id}: {count}개 메시지 (연속 버블)")
-
-        # 결과 저장
-        result_folder = RESULTS_DIR / f"{timestamp}_{analysis_id[:8]}"
-        result_folder.mkdir(exist_ok=True)
-
-        # 로그 파일 생성
-        log_file = result_folder / 'analysis_log.txt'
-        log_content = []
-        log_content.append(f"=== 이미지 분석 로그 ===")
-        log_content.append(f"분석 ID: {analysis_id}")
-        log_content.append(f"이미지 경로: {upload_path}")
-        log_content.append(f"이미지 크기: {img_width}x{img_height}")
-        log_content.append(f"분석 시각: {datetime.now().isoformat()}")
-        log_content.append(f"\n총 {len(bubbles)}개 말풍선 감지됨")
-        log_content.append(f"최종 {len(messages)}개 메시지 추출됨\n")
-
-        # OCR 처리 로그 추가
-        log_content.extend(processing_log)
-
-        # 로그 파일 저장
-        with open(log_file, 'w', encoding='utf-8') as f:
-            f.write('\n'.join(log_content))
-
-        print(f"Analysis log saved to: {log_file}")
-
-        # 분석 결과 객체 생성
-        result_data = ChatAnalysisResult(
-            analysis_id=analysis_id,
-            image_path=str(upload_path),
-            analyzed_at=datetime.now().isoformat(),
-            total_messages=len(messages),
-            image_size={'width': img_width, 'height': img_height},
-            messages=[ChatMessage(**msg) for msg in messages]
+        # DB에 저장
+        screenshot = db.add_screenshot(
+            screenshot_id=screenshot_id,
+            session_id=session_id,
+            file_path=str(file_path),
+            upload_order=upload_order,
+            image_width=img_width,
+            image_height=img_height
         )
 
-        # JSON 저장
-        json_path = result_folder / 'chat_analysis.json'
-        with open(json_path, 'w', encoding='utf-8') as f:
-            json.dump(result_data.model_dump(), f, ensure_ascii=False, indent=2)
+        print(f"✓ 스크린샷 업로드: {filename} (순서: {upload_order})")
 
-        print(f"Results saved to: {json_path}")
-
-        # 시각화 이미지 저장
-        vis_path = result_folder / 'visualization.jpg'
-        save_visualization(str(upload_path), messages, vis_path)
-
-        # 디버그 이미지 저장 (이진화)
-        debug_path = result_folder / 'debug_binary.jpg'
-        cv2.imwrite(str(debug_path), debug_binary)
-
-        # 원본 이미지 복사
-        original_path = result_folder / f'original{file_extension}'
-        shutil.copy(upload_path, original_path)
-
-        print(f"Debug binary image saved to: {debug_path}")
-
-        # 응답 반환
-        return AnalysisResponse(
-            status="success",
-            message=f"Successfully analyzed {len(messages)} chat messages",
-            data=result_data
+        return ScreenshotUploadResponse(
+            screenshot_id=screenshot_id,
+            session_id=session_id,
+            upload_order=upload_order,
+            processed=False,
+            message=f"Screenshot uploaded successfully (order: {upload_order})"
         )
 
     except Exception as e:
-        # 에러 발생 시 업로드 파일 삭제
-        if upload_path.exists():
-            upload_path.unlink()
+        print(f"업로드 실패: {e}")
+        if file_path.exists():
+            file_path.unlink()
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
-        print(f"Error: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Analysis failed: {str(e)}"
+
+@app.post("/sessions/{session_id}/process", response_model=ProcessSessionResponse)
+async def process_session(
+    session_id: str = FastAPIPath(..., description="세션 ID"),
+    relationship: str = Query(..., description="대화 상대와의 관계"),
+    relationship_info: str = Query(..., description="관계에 대한 추가 정보")
+):
+    """
+    세션 처리: OCR → 병합 → 외부 API 호출
+
+    Args:
+        session_id: 세션 ID
+        relationship: 대화 상대와의 관계 (예: "FRIEND", "SUPERIOR" 등)
+        relationship_info: 관계에 대한 추가 정보 (예: "2년 지기", "신입사원" 등)
+
+    Returns:
+        처리 결과
+    """
+    # 세션 확인
+    session = db.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    try:
+        print(f"\n{'='*70}")
+        print(f"세션 처리 시작: {session_id}")
+        print(f"{'='*70}")
+
+        # 0. relationship 정보 저장
+        db.update_session_relationship(session_id, relationship, relationship_info)
+        print(f"  대화 상대: {relationship} ({relationship_info})")
+
+        # 1. 스크린샷 가져오기
+        screenshots = db.get_screenshots(session_id)
+        if not screenshots:
+            raise HTTPException(status_code=400, detail="No screenshots uploaded")
+
+        print(f"\n📸 총 {len(screenshots)}개 스크린샷")
+
+        # 2. 각 스크린샷에서 OCR 수행
+        all_screenshot_messages = []
+
+        for idx, screenshot in enumerate(screenshots, 1):
+            print(f"\n[{idx}/{len(screenshots)}] OCR 처리: {Path(screenshot['file_path']).name}")
+
+            messages = process_single_screenshot(screenshot['file_path'])
+            print(f"  추출된 메시지: {len(messages)}개")
+
+            # 메시지에 screenshot_id 추가
+            for msg in messages:
+                msg['screenshot_id'] = screenshot['screenshot_id']
+
+            all_screenshot_messages.append(messages)
+            db.mark_screenshot_processed(screenshot['screenshot_id'])
+
+        # 3. 스크린샷 병합
+        print(f"\n{'='*70}")
+        print("스크린샷 병합 시작")
+        print(f"{'='*70}")
+
+        merged_messages, merge_history = merge_multiple_screenshots(
+            all_screenshot_messages,
+            min_overlap=2
         )
+
+        print(f"\n병합 결과: {len(merged_messages)}개 메시지")
+
+        # 4. 중복 제거
+        merged_messages = deduplicate_messages(merged_messages)
+
+        # 5. 그룹 ID 재할당
+        merged_messages = assign_global_group_ids(merged_messages)
+
+        # 6. DB에 저장
+        print(f"\n💾 데이터베이스에 저장 중...")
+        for i, msg in enumerate(merged_messages):
+            message_id = str(uuid.uuid4())
+            msg['message_id'] = message_id
+
+            db.add_message(
+                message_id=message_id,
+                session_id=session_id,
+                screenshot_id=msg['screenshot_id'],
+                text=msg['text'],
+                speaker=msg['speaker'],
+                confidence=msg['confidence'],
+                position_x=msg['position']['x'],
+                position_y=msg['position']['y'],
+                position_width=msg['position']['width'],
+                position_height=msg['position']['height'],
+                group_id=msg.get('group_id'),
+                sequence_order=i
+            )
+
+        # 7. 외부 API 호출 (user 메시지에 score/ai_message 추가)
+        print(f"\n{'='*70}")
+        print("외부 서버 연동")
+        print(f"{'='*70}")
+
+        external_service = get_external_service(
+            api_url=EXTERNAL_API_URL,
+            api_key=EXTERNAL_API_KEY
+        )
+        score_results = await external_service.get_scores_for_messages(
+            merged_messages,
+            relationship=relationship,
+            relationship_info=relationship_info
+        )
+
+        if score_results:
+            # API 응답을 DB 스키마에 맞게 변환
+            transformed_results = []
+            for res in score_results:
+                transformed_results.append({
+                    'group_id': res.get('group_id'),
+                    'score': res.get('appropriateness_rating'),  # appropriateness_rating을 score로 매핑
+                    'emotional_tone': res.get('emotional_tone'),
+                    'impact_score': res.get('impact_score'),
+                    'review_comment': res.get('review_comment'),
+                    'suggested_alternative': res.get('suggested_alternative'),
+                })
+            
+            db.bulk_update_scores_by_group(session_id, transformed_results)
+            print(f"✓ {len(transformed_results)}개 그룹에 score 업데이트 완료")
+
+        # 8. 세션 상태 업데이트
+        db.update_session_counts(session_id)
+        db.update_session_status(session_id, 'completed')
+
+        print(f"\n{'='*70}")
+        print(f"✓ 세션 처리 완료: {session_id}")
+        print(f"{'='*70}\n")
+
+        return ProcessSessionResponse(
+            session_id=session_id,
+            status='completed',
+            total_screenshots=len(screenshots),
+            total_messages=len(merged_messages),
+            merge_info={
+                'merge_history': merge_history,
+                'total_merged': len(merged_messages)
+            },
+            external_api_called=len(score_results) > 0
+        )
+
+    except Exception as e:
+        print(f"\n❌ 세션 처리 실패: {e}")
+        db.update_session_status(session_id, 'failed')
+        raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
+
+
+@app.get("/sessions/{session_id}/messages", response_model=SessionMessagesResponse)
+async def get_session_messages(session_id: str = FastAPIPath(..., description="세션 ID")):
+    """
+    세션의 메시지 조회
+
+    Args:
+        session_id: 세션 ID
+
+    Returns:
+        메시지 리스트
+    """
+    session = db.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    try:
+        messages = db.get_messages(session_id, order_by='sequence_order')
+        screenshots = db.get_screenshots(session_id)
+
+        message_models = [
+            MessageModel(
+                message_id=msg['message_id'],
+                text=msg['text'],
+                speaker=msg['speaker'],
+                confidence=msg['confidence'],
+                position=msg['position'],
+                group_id=msg.get('group_id'),
+                score=msg.get('score'),
+                emotional_tone=msg.get('emotional_tone'),
+                impact_score=msg.get('impact_score'),
+                ai_message=msg.get('review_comment')  # review_comment를 ai_message로 매핑
+            )
+            for msg in messages
+        ]
+
+        return SessionMessagesResponse(
+            session_id=session_id,
+            total_messages=len(messages),
+            total_screenshots=len(screenshots),
+            messages=message_models
+        )
+
+    except Exception as e:
+        print(f"메시지 조회 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get messages: {str(e)}")
+
+
+@app.post("/sessions/{session_id}/search")
+async def search_by_screenshot(
+    session_id: str = FastAPIPath(..., description="세션 ID"),
+    file: UploadFile = File(...)
+):
+    """
+    스크린샷으로 메시지 검색 (OCR 없이 기존 데이터에서 찾기)
+
+    Args:
+        session_id: 세션 ID
+        file: 검색용 스크린샷
+
+    Returns:
+        매칭된 메시지 리스트
+    """
+    session = db.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if session['status'] != 'completed':
+        raise HTTPException(status_code=400, detail="Session not processed yet")
+
+    try:
+        # 임시 파일 저장
+        temp_path = UPLOAD_DIR / f"search_{uuid.uuid4()}{Path(file.filename).suffix}"
+        async with aiofiles.open(temp_path, 'wb') as out_file:
+            content = await file.read()
+            await out_file.write(content)
+
+        # 간단한 OCR로 텍스트 추출
+        print(f"🔍 검색용 스크린샷 분석 중...")
+        search_messages = process_single_screenshot(str(temp_path))
+
+        # 임시 파일 삭제
+        temp_path.unlink()
+
+        if not search_messages:
+            return JSONResponse(content={
+                "matched": False,
+                "message": "No messages found in search screenshot",
+                "results": []
+            })
+
+        # DB에서 매칭되는 메시지 찾기
+        all_messages = db.get_messages(session_id)
+        matched_messages = []
+
+        print(f"  검색 메시지: {len(search_messages)}개")
+        print(f"  세션 메시지: {len(all_messages)}개")
+
+        # 간단한 텍스트 매칭
+        for search_msg in search_messages:
+            for db_msg in all_messages:
+                if search_msg['text'] == db_msg['text'] and search_msg['speaker'] == db_msg['speaker']:
+                    matched_messages.append(db_msg)
+                    break
+
+        print(f"  ✓ 매칭된 메시지: {len(matched_messages)}개")
+
+        return JSONResponse(content={
+            "matched": len(matched_messages) > 0,
+            "message": f"Found {len(matched_messages)} matching messages",
+            "results": matched_messages
+        })
+
+    except Exception as e:
+        print(f"검색 실패: {e}")
+        if temp_path.exists():
+            temp_path.unlink()
+        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,381 @@
+{
+  "session_id": "055a47fb-2c19-4be5-a3a4-2b111b75f03f",
+  "total_messages": 22,
+  "total_screenshots": 2,
+  "messages": [
+    {
+      "message_id": "58d2c62e-48af-4251-943a-3851fb84ec7e",
+      "text": "보우 1U.59",
+      "speaker": "user",
+      "confidence": 0.358,
+      "position": {
+        "x": 1152.0,
+        "y": 334.0,
+        "width": 260.0,
+        "height": 29.0
+      },
+      "group_id": 1,
+      "score": 60.0,
+      "emotional_tone": "중립",
+      "impact_score": 0.0,
+      "ai_message": "내용 전달은 되었으나 문장이 다소 불명확하고 오타가 있어 이해하기 어려울 수 있어요."
+    },
+    {
+      "message_id": "62d06a8b-4f95-4f84-98de-c93707992991",
+      "text": "내일 회의 전에 결과 정리해서 공유해 주세요 오후 11.01",
+      "speaker": "user",
+      "confidence": 0.855,
+      "position": {
+        "x": 400.0,
+        "y": 385.0,
+        "width": 1022.0,
+        "height": 186.0
+      },
+      "group_id": 1,
+      "score": 60.0,
+      "emotional_tone": "중립",
+      "impact_score": 0.0,
+      "ai_message": "내용 전달은 되었으나 문장이 다소 불명확하고 오타가 있어 이해하기 어려울 수 있어요."
+    },
+    {
+      "message_id": "9623f0f5-a5d5-4afd-a436-7143ebcafad6",
+      "text": "법 내일 오전까지 마무리하켓습니다",
+      "speaker": "interlocutor",
+      "confidence": 0.698,
+      "position": {
+        "x": 233.0,
+        "y": 728.0,
+        "width": 736.0,
+        "height": 56.0
+      },
+      "group_id": 2,
+      "score": null,
+      "emotional_tone": null,
+      "impact_score": null,
+      "ai_message": null
+    },
+    {
+      "message_id": "5f176c73-dbff-43c7-910c-b82a530a03c1",
+      "text": "회의가 오전 9시니까 9시 전에 주세요 오후 11.02",
+      "speaker": "user",
+      "confidence": 0.758,
+      "position": {
+        "x": 375.0,
+        "y": 868.0,
+        "width": 1047.0,
+        "height": 131.0
+      },
+      "group_id": 3,
+      "score": 70.0,
+      "emotional_tone": "중립",
+      "impact_score": 1.0,
+      "ai_message": "요청 내용을 분명히 전달하여 혼란을 줄이려는 의도가 느껴집니다."
+    },
+    {
+      "message_id": "320fa100-2074-4967-a968-c7a18cfe5108",
+      "text": "네 9시좀 드리켓습니다",
+      "speaker": "interlocutor",
+      "confidence": 0.607,
+      "position": {
+        "x": 237.0,
+        "y": 1160.0,
+        "width": 474.0,
+        "height": 48.0
+      },
+      "group_id": 4,
+      "score": null,
+      "emotional_tone": null,
+      "impact_score": null,
+      "ai_message": null
+    },
+    {
+      "message_id": "30836bfd-b9c8-46f8-b0db-767b07aba57e",
+      "text": "9시쪽이면 너무 늦어요 회의 시작이 9시예요 오후 11.02",
+      "speaker": "user",
+      "confidence": 0.637,
+      "position": {
+        "x": 419.0,
+        "y": 1296.0,
+        "width": 1003.0,
+        "height": 186.0
+      },
+      "group_id": 5,
+      "score": 65.0,
+      "emotional_tone": "중립",
+      "impact_score": -1.0,
+      "ai_message": "조금 단호하게 들릴 수 있지만 중요한 내용을 짚었습니다."
+    },
+    {
+      "message_id": "b139f9c8-997d-415d-8e2f-cdc76b2b6dcd",
+      "text": "아; 네. 그럼 회의 전에 바로 보내드실게요",
+      "speaker": "interlocutor",
+      "confidence": 0.384,
+      "position": {
+        "x": 233.0,
+        "y": 1640.0,
+        "width": 835.0,
+        "height": 56.0
+      },
+      "group_id": 6,
+      "score": null,
+      "emotional_tone": null,
+      "impact_score": null,
+      "ai_message": null
+    },
+    {
+      "message_id": "18271c3d-f634-4b40-83d6-2399763bb298",
+      "text": "그러니까 8시 반 전에는 보내야조. 미리 검토해야 하니까요 오후 11.02",
+      "speaker": "user",
+      "confidence": 0.71,
+      "position": {
+        "x": 356.0,
+        "y": 1779.0,
+        "width": 1065.0,
+        "height": 186.0
+      },
+      "group_id": 7,
+      "score": 75.0,
+      "emotional_tone": "중립",
+      "impact_score": 1.0,
+      "ai_message": "왜 8시 반 전에 필요한지 이유를 설명해줘서 이해를 돕는 좋은 표현입니다."
+    },
+    {
+      "message_id": "c10cb2b4-14fb-43b7-91da-80743fa5d592",
+      "text": "아 그럼 8시 30분까지로 할게요",
+      "speaker": "interlocutor",
+      "confidence": 0.829,
+      "position": {
+        "x": 233.0,
+        "y": 2122.0,
+        "width": 683.0,
+        "height": 54.0
+      },
+      "group_id": 8,
+      "score": null,
+      "emotional_tone": null,
+      "impact_score": null,
+      "ai_message": null
+    },
+    {
+      "message_id": "aa191619-a4fc-4500-af4b-290f8f0bccb4",
+      "text": "네, 다음엔 처음부터 그렇게 명확하게 해요 애매하잡아요 오후 11.03",
+      "speaker": "user",
+      "confidence": 0.762,
+      "position": {
+        "x": 291.0,
+        "y": 2262.0,
+        "width": 1130.0,
+        "height": 186.0
+      },
+      "group_id": 9,
+      "score": 50.0,
+      "emotional_tone": "약간 부정적",
+      "impact_score": -1.0,
+      "ai_message": "조금 강한 어투로 상대방이 부담을 느낄 수 있어요."
+    },
+    {
+      "message_id": "6035ee72-ec0c-41cf-b230-4d6ebab5515f",
+      "text": "팀장님 보고서 정리 완료해서 메일로",
+      "speaker": "interlocutor",
+      "confidence": 0.452,
+      "position": {
+        "x": 232.0,
+        "y": 568.0,
+        "width": 751.0,
+        "height": 58.0
+      },
+      "group_id": 10,
+      "score": null,
+      "emotional_tone": null,
+      "impact_score": null,
+      "ai_message": null
+    },
+    {
+      "message_id": "b106d3e3-914c-4fae-9263-c42be61be525",
+      "text": "발송쾌햇습니다",
+      "speaker": "interlocutor",
+      "confidence": 0.334,
+      "position": {
+        "x": 233.0,
+        "y": 634.0,
+        "width": 278.0,
+        "height": 54.0
+      },
+      "group_id": 10,
+      "score": null,
+      "emotional_tone": null,
+      "impact_score": null,
+      "ai_message": null
+    },
+    {
+      "message_id": "69359e2d-c58d-44f1-8679-89141a8bfd23",
+      "text": "이제 r어요. 다음엔 이런 거 30분 전에 쥐요 오후 11.03",
+      "speaker": "user",
+      "confidence": 0.723,
+      "position": {
+        "x": 358.0,
+        "y": 769.0,
+        "width": 1063.0,
+        "height": 186.0
+      },
+      "group_id": 11,
+      "score": 55.0,
+      "emotional_tone": "약간 부정적",
+      "impact_score": -1.0,
+      "ai_message": "요청의 중요성을 강조한 점은 좋으나, 표현이 다소 명령적으로 들릴 수 있어요."
+    },
+    {
+      "message_id": "d2cd7ff2-1457-4cab-b204-d086dcc74dbc",
+      "text": "근데 어제 말씀하긴게 8시 반이여서",
+      "speaker": "interlocutor",
+      "confidence": 0.972,
+      "position": {
+        "x": 317.0,
+        "y": 1112.0,
+        "width": 720.0,
+        "height": 48.0
+      },
+      "group_id": 12,
+      "score": null,
+      "emotional_tone": null,
+      "impact_score": null,
+      "ai_message": null
+    },
+    {
+      "message_id": "8c991871-e2ac-44f6-9f1b-6b1e5a092017",
+      "text": "보호습니다",
+      "speaker": "interlocutor",
+      "confidence": 0.143,
+      "position": {
+        "x": 384.0,
+        "y": 1176.0,
+        "width": 227.0,
+        "height": 48.0
+      },
+      "group_id": 12,
+      "score": null,
+      "emotional_tone": null,
+      "impact_score": null,
+      "ai_message": null
+    },
+    {
+      "message_id": "3d7dae8b-4f85-42d8-a27b-641c7e56dca3",
+      "text": "그래도 8시 반 '전에' 쥐으면 중계조. 저도 회의 준비해야 하니까요 오후 1104",
+      "speaker": "user",
+      "confidence": 0.538,
+      "position": {
+        "x": 319.0,
+        "y": 1307.0,
+        "width": 1103.0,
+        "height": 186.0
+      },
+      "group_id": 13,
+      "score": 65.0,
+      "emotional_tone": "중립",
+      "impact_score": 0.0,
+      "ai_message": "시간 약속을 재확인하며 준비 상황을 고려한 요청입니다."
+    },
+    {
+      "message_id": "6427f70e-1992-44b4-9e63-218dba65d3b0",
+      "text": "네, 다음에는 더 일찍 보내켓습니다",
+      "speaker": "interlocutor",
+      "confidence": 0.488,
+      "position": {
+        "x": 234.0,
+        "y": 1648.0,
+        "width": 704.0,
+        "height": 58.0
+      },
+      "group_id": 14,
+      "score": null,
+      "emotional_tone": null,
+      "impact_score": null,
+      "ai_message": null
+    },
+    {
+      "message_id": "60f594b8-c30e-4f97-84c0-99a8639ada40",
+      "text": "이건 일정 조율의 기본이에요 어제도 비슷한 얘기햇장아요 오후 11.04",
+      "speaker": "user",
+      "confidence": 0.64,
+      "position": {
+        "x": 402.0,
+        "y": 1790.0,
+        "width": 1019.0,
+        "height": 186.0
+      },
+      "group_id": 15,
+      "score": 50.0,
+      "emotional_tone": "약간 부정적",
+      "impact_score": -1.0,
+      "ai_message": "기본적인 일정 조율의 중요성을 다시 언급했지만, 반복적으로 느껴 복잡한 감정을 줄 수 있어요."
+    },
+    {
+      "message_id": "a6d88348-5aa4-4fd6-b4fc-3ffcc2a02a08",
+      "text": "네. 알켓습니다",
+      "speaker": "interlocutor",
+      "confidence": 0.343,
+      "position": {
+        "x": 234.0,
+        "y": 2136.0,
+        "width": 310.0,
+        "height": 52.0
+      },
+      "group_id": 16,
+      "score": null,
+      "emotional_tone": null,
+      "impact_score": null,
+      "ai_message": null
+    },
+    {
+      "message_id": "49ad6981-47d5-4d26-b6ca-d2ca0e28a9a1",
+      "text": "아니 애초에 좀 일찍 주면 덧나나요? 저희 8시 출근이잡아요",
+      "speaker": "user",
+      "confidence": 0.889,
+      "position": {
+        "x": 483.0,
+        "y": 2273.0,
+        "width": 938.0,
+        "height": 186.0
+      },
+      "group_id": 17,
+      "score": 30.0,
+      "emotional_tone": "부정적",
+      "impact_score": -3.0,
+      "ai_message": "명령적이고 다소 무례하게 들릴 수 있어 분위기를 악화시키네요."
+    },
+    {
+      "message_id": "ed45d707-3fd9-445b-8e9a-276e93c0b35c",
+      "text": "다음부터는 눈치앗게 일처리 해주세요 민수님 오후 11.06",
+      "speaker": "user",
+      "confidence": 0.768,
+      "position": {
+        "x": 378.0,
+        "y": 2481.0,
+        "width": 1037.0,
+        "height": 186.0
+      },
+      "group_id": 17,
+      "score": 30.0,
+      "emotional_tone": "부정적",
+      "impact_score": -3.0,
+      "ai_message": "명령적이고 다소 무례하게 들릴 수 있어 분위기를 악화시키네요."
+    },
+    {
+      "message_id": "5477f6b6-77f0-4c1d-8e9b-bf6bd3ff5ee7",
+      "text": "법 죄송합니다",
+      "speaker": "interlocutor",
+      "confidence": 0.565,
+      "position": {
+        "x": 233.0,
+        "y": 2825.0,
+        "width": 287.0,
+        "height": 55.0
+      },
+      "group_id": 18,
+      "score": null,
+      "emotional_tone": null,
+      "impact_score": null,
+      "ai_message": null
+    }
+  ]
+}
