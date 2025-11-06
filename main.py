@@ -16,6 +16,8 @@ from datetime import datetime
 from pathlib import Path
 import aiofiles
 import shutil
+import asyncio
+import aiohttp
 
 # 로컬 모듈
 from database import Database
@@ -1268,7 +1270,6 @@ async def continue_conversation(request: ContinueConversationRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    import aiohttp
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
